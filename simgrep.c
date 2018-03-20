@@ -69,8 +69,6 @@ int main(int argc, char *argv[])
 		token = strtok(NULL, " "); /* Ignore first token ./simgrep */
 
 		while (token != NULL) {	/* Cicle trough remaining tokens */
-			printf("%s\n", token);
-
 			if(!strcmp(token, "-i")) flags[0] = 1; /* Set I flag */
 			else if(!strcmp(token, "-l")) flags[1] = 1; /* Set L flag */
 			else if(!strcmp(token, "-n")) flags[2] = 1; /* Set N flag */
@@ -88,6 +86,8 @@ int main(int argc, char *argv[])
 				if(!re) pattern = token;	/* token is a pattern */
 				else if(re == REG_NOMATCH) files[k++] = token; /* token is a filename */
 			}
+
+			files[k] = NULL;
 
 			token = strtok(NULL, " "); /* get next token */
 		}
@@ -108,9 +108,18 @@ int main(int argc, char *argv[])
 
 
 void simgrep(char *pattern, char **files, short int *flags){
-	printf("Pattern: %s\n", pattern);
-	printf("File 0: %s\n", files[0]);
-	printf("File 1: %s\n", files[1]);
+	int i = 0;
+
+	printf("\nSIMGREP ARGS\n\n");
+
+	printf("Pattern: %s\n\n", pattern);
+
+	while(files[i] != NULL)
+	{
+		printf("file %d: %s\n", i, files[i]);
+		i++;
+	}
+	printf("\n");
 
 	if(flags[0]) printf("Flag I ativa\n");
 	if(flags[1]) printf("Flag L ativa\n");
@@ -118,6 +127,8 @@ void simgrep(char *pattern, char **files, short int *flags){
 	if(flags[3]) printf("Flag C ativa\n");
 	if(flags[4]) printf("Flag W ativa\n");
 	if(flags[5]) printf("Flag R ativa\n");
+
+	printf("\n");
 
 	exit(0);
 }
@@ -257,3 +268,4 @@ Analysis analyseFile(unsigned char* ptr, unsigned long tamanho, unsigned char* p
 
 	return a;
 }
+*/
