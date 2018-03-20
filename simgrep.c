@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
 	printf("%d\n", CHAR_MIN);
 
 	pid_t pid, status;
+
 	short int argI = 0;
 	short int argL = 0;
 	short int argN = 0;
@@ -41,6 +42,15 @@ int main(int argc, char *argv[])
 		printf("usage: %s [options] pattern [file/dir]\n",argv[0]);
 		exit(1);
 	}
+
+	unsigned long TamanhoDoArquivo;
+    unsigned char* Dados;
+    Dados = leArquivoDeEntrada(argv[2], &TamanhoDoArquivo);
+
+    printf("%s\n", Dados);
+
+
+
 	if (argc == 3) {
 		// tenta abrir argv[2]
 		// se conseguiu, procura por argv[1]
@@ -99,8 +109,8 @@ unsigned char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada)
         printf("Arquivo %s não existe.\n", nomeEntrada);
         exit(1);
     }
-    *tamEntrada = ObtemTamanhoDoArquivo(arq);
-    printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
+    *tamEntrada = obtemTamanhoDoArquivo(arq);
+    // printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
     
     // Aloca memória para ler todos os bytes do arquivo
     unsigned char *ptr;
