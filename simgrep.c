@@ -2,6 +2,8 @@
 //
 // Anderson Gralha - up201710810
 // Arthur Matta	- up
+// Fernando Melo - 
+//
 //
 #include <stdio.h>
 #include <sys/types.h>
@@ -9,24 +11,31 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
+#include <string.h>
 
 // Assinaturas
 int main(int argc, char *argv[]);
 int getSomething();
-void work();
-bool saveToFile();
-
+// void work();
+// bool saveToFile();
+unsigned char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada);
+unsigned long obtemTamanhoDoArquivo(FILE* f);
+void leArquivo(FILE* f, unsigned char* ptr, unsigned long TamanhoEsperado);
 
 // Main
 int main(int argc, char *argv[])
 {
+
+	printf("%d\n", CHAR_MIN);
+
 	pid_t pid, status;
-	bool argI = false;
-	bool argL = false;
-	bool argN = false;
-	bool argC = false;
-	bool argW = false;
-	bool argR = false;
+	short int argI = 0;
+	short int argL = 0;
+	short int argN = 0;
+	short int argC = 0;
+	short int argW = 0;
+	short int argR = 0;
 
 	if (argc < 3) {
 		printf("usage: %s [options] pattern [file/dir]\n",argv[0]);
@@ -40,8 +49,8 @@ int main(int argc, char *argv[])
 		// arquivo = argc[arvc-1]
 		for (int i = 1; i < argc-2 ; i++) {
 		
-			if strcmp(argv[i], "-i") {
-				argI = true;
+			if (strcmp(argv[i], "-i") > 0) {
+				argI = 1;
 			}
 			
 			
@@ -81,3 +90,48 @@ int main(int argc, char *argv[])
 	exit(0);
 } 
 
+unsigned char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada)
+{
+    FILE* arq;
+    // Tenta abrir o arquivo
+    arq = fopen(nomeEntrada, "rb");
+    if(arq == NULL) {
+        printf("Arquivo %s não existe.\n", nomeEntrada);
+        exit(1);
+    }
+    *tamEntrada = ObtemTamanhoDoArquivo(arq);
+    printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
+    
+    // Aloca memória para ler todos os bytes do arquivo
+    unsigned char *ptr;
+    ptr = (unsigned char*)malloc(sizeof(unsigned char) * *tamEntrada);
+    if(ptr == NULL) { // Testa se conseguiu alocar
+        // printf("Erro na alocação da memória!\n");
+        exit(1);
+    }
+    leArquivo(arq, ptr, *tamEntrada);
+    fclose(arq); // fecha o arquivo
+    return ptr;
+}
+
+unsigned long obtemTamanhoDoArquivo(FILE* f)
+{
+    fseek(f, 0, SEEK_END);
+    unsigned long len = (unsigned long)ftell(f);
+    fseek(f, SEEK_SET, 0);
+    return len;
+}
+
+void leArquivo(FILE* f, unsigned char* ptr, unsigned long TamanhoEsperado)
+{
+    unsigned long NroDeBytesLidos;
+    NroDeBytesLidos = fread(ptr, sizeof(unsigned char), TamanhoEsperado, f);
+    
+    if(NroDeBytesLidos != TamanhoEsperado) { // verifica se a leitura funcionou
+         printf("Erro na Leitura do arquivo!\n");
+         printf("Nro de bytes lidos: %ld", NroDeBytesLidos);
+        exit(1);
+    } else {
+         printf("Leitura realizada com sucesso!\n");
+    }
+}
