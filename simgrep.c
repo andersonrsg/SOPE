@@ -11,19 +11,49 @@
 #include <stdio.h>
 
 // Assinaturas
-int main(int argc, char *argv[], char *envp[]);
+int main(int argc, char *argv[]);
 int getSomething();
 void work();
+bool saveToFile();
 
 
 // Main
-int main(int argc, char *argv[], char *envp[])
+int main(int argc, char *argv[])
 {
 	pid_t pid, status;
-	if (argc != 2) {
-		printf("usage: %s dirname\n",argv[0]);
+	bool argI = false;
+	bool argL = false;
+	bool argN = false;
+	bool argC = false;
+	bool argW = false;
+	bool argR = false;
+
+	if (argc < 3) {
+		printf("usage: %s [options] pattern [file/dir]\n",argv[0]);
 		exit(1);
 	}
+	if (argc == 3) {
+		// tenta abrir argv[2]
+		// se conseguiu, procura por argv[1]
+	}
+	if (argc > 3) {
+		// arquivo = argc[arvc-1]
+		for (int i = 1; i < argc-2 ; i++) {
+		
+			if strcmp(argv[i], "-i") {
+				argI = true;
+			}
+			
+			
+		}
+		// 
+		//
+		//
+		//
+	}
+
+
+
 	pid=fork();
 	if (pid > 0) {
 		wait(&status);
