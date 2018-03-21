@@ -5,11 +5,10 @@
 //
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <limits.h>
 #include <string.h>
 #include <regex.h>
 
@@ -26,7 +25,8 @@ struct Analysis {
 // Assinaturas
 int main(int argc, char *argv[]);
 int getSomething();
-void simgrep(char *pattern, char **files, short int *flags);
+void simgrep(char *pattern, char **filenames, short int *flags);
+int is_file_or_dir(char *curr);
 // void work();
 // bool saveToFile();
 unsigned char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada);
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Generate acceptable input format */
-	re = regcomp(&regex, "(\\.\\/simgrep(\\s*-[ilncwr] *)*\\s*(\\w)+( +(\\w)*\\.[a-z]{1,4})* *)$", REG_EXTENDED);
+	re = regcomp(&regex, "(\\.\\/simgrep(\\s*-[ilncwr] *)*\\s*(\\w)+(( +(\\w)*\\.[a-z]{1,4})|( *\\/\\w+))* *)$", REG_EXTENDED);
 	if (re) {
 		fprintf(stderr, "Could not compile regex\n");
 		exit(1);
@@ -107,18 +107,50 @@ int main(int argc, char *argv[])
 }
 
 
-void simgrep(char *pattern, char **files, short int *flags){
-	int i = 0;
+void simgrep(char *pattern, char **filenames, short int *flags){
+	int i=0, j=0, k=0, r;
+	char *directories[50],
+		 *files[50];
 
 	printf("\nSIMGREP ARGS\n\n");
 
 	printf("Pattern: %s\n\n", pattern);
 
-	while(files[i] != NULL)
+	while(filenames[i] != NULL)
 	{
-		printf("file %d: %s\n", i, files[i]);
+		r = is_file_or_dir(filenames[i]);
+
+		if(r == 1)
+		{
+			files[j++] = filenames[i];
+		}
+		else if(!r)
+		{
+			directories[k++] = filenames[i];
+		}
+		else
+		{
+			fprintf(stderr, "File %s not found!\n", filenames[i]);
+			return;
+		}
 		i++;
 	}
+	files[j] = NULL;
+	directories[k] = NULL;
+
+	j = k = 0;
+	printf("Files: \n");
+	while(files[j] != NULL)
+		printf("%s\n", files[j++]);
+
+	printf("\n");
+
+	printf("directories: \n");
+	while(directories[k] != NULL)
+		printf("%s\n", directories[k++]);
+
+
+
 	printf("\n");
 
 	if(flags[0]) printf("Flag I ativa\n");
@@ -131,6 +163,25 @@ void simgrep(char *pattern, char **files, short int *flags){
 	printf("\n");
 
 	exit(0);
+}
+
+int is_file_or_dir(char *file)
+{
+	struct stat fileStat;
+	if(stat(file, &fileStat) < 0)
+	{
+		char string[50];
+		strncpy(string, file+1, strlen(file));
+
+		if (stat(string, &fileStat) < 0) {
+			printf("%s was not found\n", file);
+			exit(2);
+		}
+
+		return 0;
+	}
+
+	return S_ISREG(fileStat.st_mode);
 }
 
 /*
@@ -190,26 +241,26 @@ exit(0);
 
 unsigned char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada)
 {
-    FILE* arq;
-    // Tenta abrir o arquivo
-    arq = fopen(nomeEntrada, "rb");
-    if(arq == NULL) {
-        printf("Arquivo %s não existe.\n", nomeEntrada);
-        exit(1);
-    }
-    *tamEntrada = obtemTamanhoDoArquivo(arq);
-    // printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
+FILE* arq;
+// Tenta abrir o arquivo
+arq = fopen(nomeEntrada, "rb");
+if(arq == NULL) {
+printf("Arquivo %s não existe.\n", nomeEntrada);
+exit(1);
+}
+*tamEntrada = obtemTamanhoDoArquivo(arq);
+// printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
 
-    // Aloca memória para ler todos os bytes do arquivo
-    unsigned char *ptr;
-    ptr = (unsigned char*)malloc(sizeof(unsigned char) * *tamEntrada);
-    if(ptr == NULL) { // Testa se conseguiu alocar
-        // printf("Erro na alocação da memória!\n");
-        exit(1);
-    }
-    leArquivo(arq, ptr, *tamEntrada);
-    fclose(arq); // fecha o arquivo
-    return ptr;
+// Aloca memória para ler todos os bytes do arquivo
+unsigned char *ptr;
+ptr = (unsigned char*)malloc(sizeof(unsigned char) * *tamEntrada);
+if(ptr == NULL) { // Testa se conseguiu alocar
+// printf("Erro na alocação da memória!\n");
+exit(1);
+}
+leArquivo(arq, ptr, *tamEntrada);
+fclose(arq); // fecha o arquivo
+return ptr;
 }
 
 unsigned long obtemTamanhoDoArquivo(FILE* f)
@@ -236,36 +287,36 @@ printf("Leitura realizada com sucesso!\n");
 
 Analysis analyseFile(unsigned char* ptr, unsigned long tamanho, unsigned char* pattern, unsigned long tamanhoPattern) {
 
-	struct Analysis a;
-	unsigned long pos = 0;
-	unsigned long posTamPattern = 0;
+struct Analysis a;
+unsigned long pos = 0;
+unsigned long posTamPattern = 0;
 
-	unsigned char *inicioPalavra = ptr;
-	unsigned char *inicioPalavraPattern = pattern;
+unsigned char *inicioPalavra = ptr;
+unsigned char *inicioPalavraPattern = pattern;
 
-	// unsigned char *pos = ptr;
+// unsigned char *pos = ptr;
 
-	while (pos < tamanho) {
-		if (inicioPalavra == inicioPalavraPattern) {
+while (pos < tamanho) {
+if (inicioPalavra == inicioPalavraPattern) {
 
-			inicioPalavra++;
-			inicioPalavraPattern++;
-			posTamPattern++;
+inicioPalavra++;
+inicioPalavraPattern++;
+posTamPattern++;
 
-		} else {
-			inicioPalavra = &ptr[pos];
-			inicioPalavraPattern = pattern;
-			posTamPattern = 0;
-		}
+} else {
+inicioPalavra = &ptr[pos];
+inicioPalavraPattern = pattern;
+posTamPattern = 0;
+}
 
-		if (tamanhoPattern == posTamPattern) {
-			a.matchesCount++;
-		}
+if (tamanhoPattern == posTamPattern) {
+a.matchesCount++;
+}
 
-		pos++;
-	}
+pos++;
+}
 
 
-	return a;
+return a;
 }
 */
