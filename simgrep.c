@@ -16,6 +16,15 @@
 #include <libgen.h>
 #include <fcntl.h>
 
+#define BIT(n)  (0x01 << n)
+#define I_FLAG  BIT(0)
+#define L_FLAG  BIT(1)
+#define N_FLAG  BIT(2)
+#define C_FLAG  BIT(3)
+#define W_FLAG  BIT(4)
+#define R_FLAG  BIT(5)
+
+
 
 typedef struct Analysis Analysis;
 struct Analysis {
@@ -29,7 +38,7 @@ struct Analysis {
 // Assinaturas
 int main(int argc, char *argv[]);
 int getSomething();
-int simgrep(char *pattern, char **filenames, short int *flags);
+int simgrep(char *pattern, char **filenames, unsigned char flags);
 int is_file_or_dir(char *curr);
 char **getDirContent(char *directory);
 // void work();
@@ -41,43 +50,44 @@ Analysis analyseFile(unsigned char* ptr, unsigned long tamanho, unsigned char* p
 
 // Main
 int main(int argc, char *argv[]){
-    short int flags[6] = {0,0,0,0,0,0};
+    unsigned char flags = 0x00;
     regex_t regex;
     int re, k=0;
-    char msg[100];
-    char string[100];
-    char *token;
-    char *pattern = NULL;
-    char *files[50];
+    char msg[100],
+        *args = NULL,
+        *token,
+        *pattern = NULL,
+        **files = NULL;
 
     /* Concatenate args */
-    strcpy(string, argv[0]);
+    args = (char*)malloc(strlen(argv[0])+1);
+    strcpy(args, argv[0]);
     for (int i = 1; i < argc; i++) {
-        strcat(string, " ");
-        strcat(string, argv[i]);
+        args = (char*)realloc(args, strlen(args)+1+strlen(argv[i]));
+        strcat(args, " ");
+        strcat(args, argv[i]);
     }
 
     /* Generate acceptable input format */
-    re = regcomp(&regex, "(\\.\\/simgrep(\\s*-[ilncwr] *)*\\s*(\\w)+(( +(\\w)*\\.[a-z]{1,4})|( *\\.{1,2}(\\/\\w+)*))* *)$", REG_EXTENDED);
-    if (re) {
+    if (regcomp(&regex, "(\\.\\/simgrep(\\s*-[ilncwr] *)*\\s*(\\w)+(( +(\\w)*\\.[a-z]{1,4})|( *\\.{1,2}(\\/\\w+)*))* *)$", REG_EXTENDED)) {
         fprintf(stderr, "Could not compile regex\n");
         exit(1);
     }
 
     /* test input agains acceptable input format */
-    re = regexec(&regex, string, 0, NULL, 0);
+    re = regexec(&regex, args, 0, NULL, 0);
     if (!re) {
 
-        token = strtok(string, " "); /* Break string into tokens */
+        token = strtok(args, " "); /* Break string into tokens */
         token = strtok(NULL, " "); /* Ignore first token ./simgrep */
 
         while (token != NULL) {	/* Cicle trough remaining tokens */
-            if(!strcmp(token, "-i")) flags[0] = 1; /* Set I flag */
-            else if(!strcmp(token, "-l")) flags[1] = 1; /* Set L flag */
-            else if(!strcmp(token, "-n")) flags[2] = 1; /* Set N flag */
-            else if(!strcmp(token, "-c")) flags[3] = 1; /* Set C flag */
-            else if(!strcmp(token, "-w")) flags[4] = 1; /* Set W flag */
-            else if(!strcmp(token, "-r")) flags[5] = 1; /* Set R flag */
+            if(!strcmp(token, "-i")) flags |= I_FLAG; /* Set I flag */
+            else if(!strcmp(token, "-l")) flags |= L_FLAG; /* Set L flag */
+            else if(!strcmp(token, "-n")) flags |= N_FLAG; /* Set N flag */
+            else if(!strcmp(token, "-c")) flags |= C_FLAG; /* Set C flag */
+            else if(!strcmp(token, "-w")) flags |= W_FLAG; /* Set W flag */
+            else if(!strcmp(token, "-r")) flags |= R_FLAG; /* Set R flag */
             else {
                 re = regcomp(&regex, "^\\w+$", REG_EXTENDED); /* Test if token is a pattern */
                 if (re) {
@@ -87,13 +97,36 @@ int main(int argc, char *argv[]){
                 re = regexec(&regex, token, 0, NULL, 0);
 
                 if(!re) pattern = token;	/* token is a pattern */
-                else if(re == REG_NOMATCH) files[k++] = token; /* token is a filename */
+                else if(re == REG_NOMATCH){
+                    files = (char**)realloc(files, (k+1) * sizeof(char*));
+                    files[k] = (char*)malloc(strlen(token)+1);
+                    files[k] = token; /* token is a filename */
+                    k++;
+                }
             }
 
             token = strtok(NULL, " "); /* get next token */
         }
 
-        files[k] = NULL; /* set end of files */
+
+        if((flags & R_FLAG) && (files == NULL)){
+            files = (char**)realloc(files, (k+1) * sizeof(char*));
+            *files = ".";
+        }
+        else if(!(flags & R_FLAG) && (files == NULL)){
+
+            /*
+                TODO: if R flag is down and files is NULL
+                then simgrep should read from stdin
+            */
+
+            files = (char**)realloc(files, (k+1) * sizeof(char*));
+            *files = "stdin";
+        }
+        else{
+            files[k] = NULL; /* set end of files */
+        }
+
 
         if(simgrep(pattern, files, flags)){
             perror("simgrep");
@@ -111,7 +144,7 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-int simgrep(char *pattern, char **filenames, short int *flags) {
+int simgrep(char *pattern, char **filenames, unsigned char flags) {
     int i=0, j=0, k=0, r;
     char **directories = NULL,
          **files = NULL,
@@ -124,50 +157,57 @@ int simgrep(char *pattern, char **filenames, short int *flags) {
 
         if(r == 1) /* filename is a file */
         {
+            /* reallocate memory to add new file */
             files = (char**)realloc(files, (j+1) * sizeof(char*));
+            /* allocate memory for <filename> + end of string character '\0' */
             files[j] = (char*)malloc(strlen(filenames[i])+1);
             strcpy(files[j], filenames[i]);
             j++;
         }
         else if(r == 0) /* filename is a directory */
         {
+            /* reallocate memory to add new directory */
             directories = (char**)realloc(directories, (k+1) * sizeof(char*));
+            /* allocate memory for <dirname> + end of string character '\0' */
             directories[k] = (char*)malloc(strlen(filenames[i])+1);
             strcpy(directories[k], filenames[i]);
             k++;
         }
-        else
+        else /* filename is neither a regular file nor a directory */
         {
             fprintf(stderr, "File %s not found!\n", filenames[i]);
             return 1;
         }
         i++;
     }
+    /* add a null terminator to the array */
     files = (char**)realloc(files, (j+1) * sizeof(char*));
     files[j] = NULL;
 
+    /* add a null terminator to the array */
     directories = (char**)realloc(directories, (k+1) * sizeof(char*));
     directories[k] = NULL;
 
     j = k = 0;
     printf("Files: \n");
     while(files[j] != NULL)
-        printf("%s\n", files[j++]);
+    printf("%s\n", files[j++]);
 
     printf("\n");
 
     printf("directories: \n");
     while(directories[k] != NULL)
-        printf("%s\n", directories[k++]);
+    printf("%s\n", directories[k++]);
 
     printf("\n");
 
-    if(flags[0]) printf("Flag I ativa\n");
-    if(flags[1]) printf("Flag L ativa\n");
-    if(flags[2]) printf("Flag N ativa\n");
-    if(flags[3]) printf("Flag C ativa\n");
-    if(flags[4]) printf("Flag W ativa\n");
-    if(flags[5]){
+    /* flags options */
+    if(flags & I_FLAG) printf("Flag I ativa\n");
+    if(flags & L_FLAG) printf("Flag L ativa\n");
+    if(flags & N_FLAG) printf("Flag N ativa\n");
+    if(flags & C_FLAG) printf("Flag C ativa\n");
+    if(flags & W_FLAG) printf("Flag W ativa\n");
+    if(flags & R_FLAG){
         printf("Flag R ativa\n");
         for (i = 0; directories[i] != NULL; i++) {
             if((pid = fork()) < 0){
@@ -175,7 +215,6 @@ int simgrep(char *pattern, char **filenames, short int *flags) {
                 exit(2);
             }
             else if(pid){
-
                 waitpid(pid, &r , 0);
             }
             else{
@@ -201,7 +240,7 @@ int is_file_or_dir(char *file){
     struct stat fileStat;
 
     if(stat(file, &fileStat) < 0)
-        return -1;
+    return -1;
 
     return S_ISREG(fileStat.st_mode);
 }
@@ -245,6 +284,7 @@ char **getDirContent(char *directory){
         strcpy(filenames[i], filepath);
         i++;
     }
+    /* add a null terminator to the array */
     filenames = (char**)realloc(filenames, (i+1)*sizeof(char*));
     filenames[i] = NULL;
 
