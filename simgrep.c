@@ -2,7 +2,7 @@
 //
 // Anderson Gralha - up201710810
 // Arthur Matta	- up201609953
-// Fernando Oliveira - 
+// Fernando Oliveira -
 //
 #include <stdio.h>
 #include <sys/types.h>
@@ -14,7 +14,6 @@
 #include <string.h>
 #include <regex.h>
 #include <dirent.h>
-#include <libgen.h>
 #include <fcntl.h>
 
 #define BIT(n)  (0x01 << n)
@@ -59,16 +58,16 @@ int main(int argc, char *argv[]){
         **files = NULL;
 
     /* Concatenate args */
-    args = (char*)malloc(strlen(argv[0])+1);
+    args = (char*)malloc(strlen(argv[0]));
     strcpy(args, argv[0]);
     for (int i = 1; i < argc; i++) {
-        args = (char*)realloc(args, strlen(args)+1+strlen(argv[i]));
+        args = (char*)realloc(args, strlen(args)+1+strlen(argv[i])+1);
         strcat(args, " ");
         strcat(args, argv[i]);
     }
 
     /* Generate acceptable input format */
-    if (regcomp(&regex, "(\\.\\/simgrep(\\s*-[ilncwr] *)*\\s*(\\w)+(( +(\\w)*\\.[a-z]{1,4})|( *\\.{1,2}(\\/\\w+)*))* *)$", REG_EXTENDED)) {
+    if (regcomp(&regex, "(\\.\\/simgrep(\\s*-[ilncwr] *)*\\s*(\\w)+(( +(\\w)+\\.[a-z]{1,4})|( *\\.{1,2}(\\/\\w+)*\\/*))* *)$", REG_EXTENDED)) {
         fprintf(stderr, "Could not compile regex\n");
         exit(1);
     }
