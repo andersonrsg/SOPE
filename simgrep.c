@@ -2,6 +2,7 @@
 //
 // Anderson Gralha - up201710810
 // Arthur Matta	- up201609953
+// Fernando Oliveira - 
 //
 #include <stdio.h>
 #include <sys/types.h>
@@ -23,8 +24,6 @@
 #define C_FLAG  BIT(3)
 #define W_FLAG  BIT(4)
 #define R_FLAG  BIT(5)
-
-
 
 typedef struct Analysis Analysis;
 struct Analysis {
