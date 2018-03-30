@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
     }
     
     /* Generate acceptable input format */
-    if (regcomp(&regex, "(\\.\\/simgrep( *-[ilncwr] *)* *[a-zA-Z0-9]+(( +[a-zA-Z0-9]+\\.[a-z]{1,4})|( *\\.{1,2}(\\/[a-zA-Z0-9]+)*\\/*))* *)$", REG_EXTENDED)) {
+    if (regcomp(&regex, "(\\.\\/simgrep( *-[ilncwr] *)* *[a-zA-Z0-9]+(( +[a-zA-Z0-9]+\\.[a-z]{1,4})|( *\\.{1,2}(\\/[a-zA-Z0-9]+(\\.[a-z]{1,4})?)*\\/*))* *)$", REG_EXTENDED)) {
         fprintf(stderr, "Could not compile regex\n");
         exit(1);
     }
@@ -237,7 +237,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             }
         }
     }
-    
+
     for (i = 0; files[i] != NULL; i++) {
         unsigned long TamanhoDoArquivo;
         char* Dados;
