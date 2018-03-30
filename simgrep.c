@@ -239,9 +239,6 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
     }
     
     for (i = 0; files[i] != NULL; i++) {
-        if (!(flags & L_FLAG)) {
-            printf("%s ", files[i]);
-        }
         unsigned long TamanhoDoArquivo;
         char* Dados;
         
@@ -252,7 +249,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             printf("%ld\n", a.matchesCount);
         }
         if ((flags & C_FLAG) && (flags & L_FLAG)) {
-            printf("1\n");
+            printf("%ld\n", sizeof(files));
         }
         if ((flags & L_FLAG)) {
             printf("%s\n", files[0]);
