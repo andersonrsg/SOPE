@@ -244,19 +244,37 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         
         Dados = leArquivoDeEntrada(files[i], &TamanhoDoArquivo);
         Analysis a = analyseFile(Dados, TamanhoDoArquivo, pattern);
-        
-        if ((flags & C_FLAG) && !(flags & L_FLAG)) {
-            printf("%ld\n", a.matchesCount);
+
+        char *buffer;
+        if((flags & C_FLAG) && (flags & L_FLAG)) {
+            buffer = (char*)malloc(sizeof(char) * 3);
+            buffer[0] = ':';
+            if (a.matchesCount > 0) {
+                buffer[1] = '1';    
+            } else {
+                buffer[1] = '0';    
+            }
+            
+            buffer[2] = '\0';
+
+            printf("%s%s\n", files[i], buffer);
+            printf("%s\n", files[i]);
+        } else {
+            buffer = (char*)malloc(sizeof(char));
+            buffer = "";
         }
-        if ((flags & C_FLAG) && (flags & L_FLAG)) {
-            printf("%ld\n", sizeof(files));
-        }
-        if ((flags & L_FLAG)) {
+
+        if ((flags & L_FLAG) && a.matchesCount > 0 && !(flags & C_FLAG)) {
             printf("%s\n", files[i]);
         }
+    
+        if ((flags & C_FLAG) && !(flags & L_FLAG) && (flags & R_FLAG) ) {
+            printf("%s%ld\n", files[i], a.matchesCount);
+        }
+
     }
     
-    // printf("\n");
+    
     
     return 0;
 }
@@ -377,7 +395,7 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
     // Montar String
     
     char *tok;
-    char *buffer;
+    // char *buffer;
     
     while ( (tok = strsep(&inicioPalavra, "\n")) != NULL) {
         
@@ -410,6 +428,8 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
                 p = q;
             }
             
+            char *buffer;
+
             if((flags & N_FLAG) && !(flags & C_FLAG)) {
                 const int n = snprintf(NULL, 0, "%lu", line);
                 buffer = (char*)malloc(sizeof(char) * n+2);
@@ -424,13 +444,13 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
             if (flags & W_FLAG) {
                 if (wFlagFound) {
                     a.matchesCount++;
-                    if (!(flags & C_FLAG)) {
+                    if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
                         printf("%s%s\n", buffer, tok);
                     }
                 }
             } else {
                 a.matchesCount++;
-                if (!(flags & C_FLAG)) {
+                if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
                     printf("%s%s\n", buffer, tok);
                 }
             }
