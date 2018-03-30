@@ -25,6 +25,11 @@
 #define W_FLAG  BIT(4)
 #define R_FLAG  BIT(5)
 
+#define SIMGREP     BIT(0)
+#define FLAGS       BIT(1)
+#define PATTERN     BIT(2)
+#define FILES       BIT(3)
+
 typedef struct Analysis Analysis;
 struct Analysis {
 
@@ -55,10 +60,34 @@ int main(int argc, char *argv[]) {
     regex_t regex;
     int re, k=0;
     char msg[100],
-    *args = NULL,
-    *token,
-    *pattern = NULL,
-    **files = NULL;
+        *args = NULL,
+        *token,
+        *pattern = NULL,
+        **files = NULL;
+    unsigned char next = SIMGREP;
+
+    // for(int i=0; i < argc; i++){
+    //     args = argv[i];
+    //
+    //     if((next & SIMGREP) && strcmp(args, "./simgrep")){
+    //         next = 0x00;
+    //         next |= FLAGS;
+    //     }
+    //     else if(next & FLAGS){
+    //         if(!strcmp(token, "-i")) flags |= I_FLAG; /* Set I flag */
+    //         else if(!strcmp(token, "-l")) flags |= L_FLAG; /* Set L flag */
+    //         else if(!strcmp(token, "-n")) flags |= N_FLAG; /* Set N flag */
+    //         else if(!strcmp(token, "-c")) flags |= C_FLAG; /* Set C flag */
+    //         else if(!strcmp(token, "-w")) flags |= W_FLAG; /* Set W flag */
+    //         else if(!strcmp(token, "-r")) flags |= R_FLAG; /* Set R flag */
+    //
+    //     }
+    //     else if(next & PATTERN){
+    //
+    //     }
+    //
+    // }
+
 
     /* Concatenate args */
     args = (char*)malloc(strlen(argv[0]));
@@ -70,7 +99,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Generate acceptable input format */
-    if (regcomp(&regex, "(\\.\\/simgrep(\\s*-[ilncwr] *)*\\s*(\\w)+(( +(\\w)+\\.[a-z]{1,4})|( *\\.{1,2}(\\/\\w+)*\\/*))* *)", REG_EXTENDED)) {
+    if (regcomp(&regex, "(\\.\\/simgrep( *-[ilncwr] *)* *[a-zA-Z0-9]+(( +[a-zA-Z0-9]+\\.[a-z]{1,4})|( *\\.{1,2}(\\/[a-zA-Z0-9]+)*\\/*))* *)$", REG_EXTENDED)) {
         fprintf(stderr, "Could not compile regex\n");
         exit(1);
     }
