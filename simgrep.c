@@ -402,8 +402,8 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
             
             if (flags & W_FLAG) {
                 char *q = p + n;
-                if ( p == newPattern || isblank (( unsigned char ) *(p - 1))) {
-                    if ( *q == '\0' || isblank (( unsigned char ) *q)) {
+                if ( p == newPattern || !isalnum (( unsigned char ) *(p - 1))) {
+                    if ( *q == '\0' || !isalnum (( unsigned char ) *q)) {
                         wFlagFound = 1;
                     }
                 }
@@ -444,3 +444,4 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
     
     return a;
 }
+
