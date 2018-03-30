@@ -445,3 +445,5 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
     return a;
 }
 
+
+
