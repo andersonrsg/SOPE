@@ -144,9 +144,6 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    free(files);
-    free(pattern);
-    free(args);
     return 0;
 }
 
