@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
             else if(!strcmp(token, "-w")) flags |= W_FLAG; /* Set W flag */
             else if(!strcmp(token, "-r")) flags |= R_FLAG; /* Set R flag */
             else {
-                re = regcomp(&regex, "^\\w+$", REG_EXTENDED); /* Test if token is a pattern */
+                re = regcomp(&regex, "^[a-zA-Z0-9]$", REG_EXTENDED); /* Test if token is a pattern */
                 if (re) {
                     fprintf(stderr, "Could not compile regex\n");
                     exit(1);
