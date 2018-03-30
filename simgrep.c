@@ -377,12 +377,9 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
     // Montar String
     
     char *tok;
-    char *saveptr;
-    // char *lowerCased;
     char *buffer;
-    tok = strtok_r(inicioPalavra, "\n", &saveptr);
     
-    while (tok != NULL) {
+    while ( (tok = strsep(&inicioPalavra, "\n")) != NULL) {
         
         char *copy = strdup(tok);
         char *newPattern = strdup(pattern);
@@ -442,7 +439,6 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
         }
         
         line++;
-        tok = strtok_r(NULL, "\n", &saveptr);
         
     }
     
