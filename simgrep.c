@@ -252,7 +252,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             printf("%ld\n", sizeof(files));
         }
         if ((flags & L_FLAG)) {
-            printf("%s\n", files[0]);
+            printf("%s\n", files[i]);
         }
     }
     
@@ -405,17 +405,13 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
             
             if (flags & W_FLAG) {
                 char *q = p + n;
-                if ( p == newPattern || isblank( ( unsigned char ) *( p - 1 ) ) ) {
-                    if ( *q == '\0' || isblank( ( unsigned char ) *q ) ) {
+                if ( p == newPattern || isblank (( unsigned char ) *(p - 1))) {
+                    if ( *q == '\0' || isblank (( unsigned char ) *q)) {
                         wFlagFound = 1;
                     }
                 }
                 p = q;
-            } else {
-                
             }
-            
-            
             
             if((flags & N_FLAG) && !(flags & C_FLAG)) {
                 const int n = snprintf(NULL, 0, "%lu", line);
@@ -428,9 +424,6 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
                 buffer = "";
             }
             
-            // if (!(flags & L_FLAG)) {
-            
-            // }
             if (flags & W_FLAG) {
                 if (wFlagFound) {
                     a.matchesCount++;
@@ -452,11 +445,6 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
         tok = strtok_r(NULL, "\n", &saveptr);
         
     }
-    
-    // if(flags & L_FLAG) printf("Flag L ativa\n");
-    // if(flags & N_FLAG) printf("Flag N ativa\n");
-    // if(flags & C_FLAG) printf("Flag C ativa\n");
-    // if(flags & W_FLAG) printf("Flag W ativa\n");
     
     return a;
 }
