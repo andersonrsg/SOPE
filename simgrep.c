@@ -449,12 +449,12 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
             if (!(flags & L_FLAG)) {
                 if (flags & W_FLAG) {
                     if (wFlagFound) {
-                        if (flags & C_FLAG) {
+                        if (!(flags & C_FLAG)) {
                             printf("%s%s\n", buffer, tok);
                         }
                     }
                 } else {
-                    if (flags & C_FLAG) {
+                    if (!(flags & C_FLAG)) {
                         printf("%s%s\n", buffer, tok);
                     }
                 }
