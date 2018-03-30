@@ -191,6 +191,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
     directories[k] = NULL;
 
     j = k = 0;
+    /*
     printf("Files: \n");
     while(files[j] != NULL)
         printf("%s\n", files[j++]);
@@ -202,11 +203,12 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         printf("%s\n", directories[k++]);
 
     printf("\n");
+    */
 
     /* flags options */
 
     if(flags & R_FLAG) {
-        printf("Flag R ativa\n");
+        // printf("Flag R ativa\n");
         for (i = 0; directories[i] != NULL; i++) {
             if((pid = fork()) < 0){
                 fprintf(stderr, "Error in fork\n");
@@ -228,22 +230,25 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             }
         }
     } else {
-        if (!(flags & L_FLAG)) {
-            printf("%s", files[0]);
-        }
         unsigned long TamanhoDoArquivo;
         char* Dados;
 
         Dados = leArquivoDeEntrada(files[0], &TamanhoDoArquivo);
         Analysis a = analyseFile(Dados, TamanhoDoArquivo, pattern);
 
-        if (flags & C_FLAG) {
-            printf("%s\n", a.matchesfound);
+        if ((flags & C_FLAG) && !(flags & L_FLAG)) {
+            printf("%ld\n", a.matchesCount);
+        }
+        if ((flags & C_FLAG) && (flags & L_FLAG)) {
+            printf("1\n");
+        }
+        if ((flags & L_FLAG)) {
+            printf("%s\n", files[0]);
         }
 
     }
 
-    printf("\n");
+    // printf("\n");
 
     return 0;
 }
@@ -339,11 +344,11 @@ void leArquivo(FILE* f, char* ptr, unsigned long TamanhoEsperado) {
     NroDeBytesLidos = fread(ptr, sizeof(char), TamanhoEsperado, f);
 
     if(NroDeBytesLidos != TamanhoEsperado) { // verifica se a leitura funcionou
-        printf("Erro na Leitura do arquivo!\n");
-        printf("Nro de bytes lidos: %ld", NroDeBytesLidos);
+        // printf("Erro na Leitura do arquivo!\n");
+        // printf("Nro de bytes lidos: %ld", NroDeBytesLidos);
         exit(1);
     } else {
-        printf("Leitura realizada com sucesso!\n");
+        // printf("Leitura realizada com sucesso!\n");
     }
 }
 
@@ -351,8 +356,6 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
 
     struct Analysis a;
     a.matchesCount = 0;
-    unsigned long pos = 0;
-    unsigned long posTamPattern = 0;
     unsigned long line = 1;
 
     // printf("pos: %ld, postampatt: %ld, patter: %s\n", pos, posTamPattern, pattern);
@@ -366,7 +369,7 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
 
     char *tok;
     char *saveptr;
-    char *lowerCased;
+    // char *lowerCased;
     char *buffer;
     tok = strtok_r(inicioPalavra, "\n", &saveptr);
 
@@ -391,8 +394,6 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
 
         if ((p = strstr(copy, newPattern)) != NULL) {
 
-
-
             if (flags & W_FLAG) {
                 char *q = p + n;
                 if ( p == newPattern || isblank( ( unsigned char ) *( p - 1 ) ) ) {
@@ -407,10 +408,10 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
 
 
 
-            if(flags & N_FLAG) {
+            if((flags & N_FLAG) && !(flags & C_FLAG)) {
                 const int n = snprintf(NULL, 0, "%lu", line);
                 buffer = (char*)malloc(sizeof(char) * n+2);
-                int c = snprintf(buffer, n+1, "%lu", line);
+                snprintf(buffer, n+1, "%lu", line);
                 buffer[n] = ':';
                 buffer[n+1] = '\0';
             } else {
@@ -418,21 +419,24 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
                 buffer = "";
             }
 
-            if (!(flags & L_FLAG)) {
-                if (flags & W_FLAG) {
-                    if (wFlagFound) {
-                        if (!(flags & C_FLAG)) {
-                            printf("%s%s\n", buffer, tok);
-                        }
-                    }
-                } else {
+            // if (!(flags & L_FLAG)) {
+
+            // }
+            if (flags & W_FLAG) {
+                if (wFlagFound) {
+                    a.matchesCount++;
                     if (!(flags & C_FLAG)) {
                         printf("%s%s\n", buffer, tok);
                     }
                 }
+            } else {
+                a.matchesCount++;
+                if (!(flags & C_FLAG)) {
+                    printf("%s%s\n", buffer, tok);
+                }
             }
+            
 
-            a.matchesCount++;
         }
 
         line++;
@@ -440,10 +444,10 @@ Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
 
     }
 
-    if(flags & L_FLAG) printf("Flag L ativa\n");
-    if(flags & N_FLAG) printf("Flag N ativa\n");
-    if(flags & C_FLAG) printf("Flag C ativa\n");
-    if(flags & W_FLAG) printf("Flag W ativa\n");
+    // if(flags & L_FLAG) printf("Flag L ativa\n");
+    // if(flags & N_FLAG) printf("Flag N ativa\n");
+    // if(flags & C_FLAG) printf("Flag C ativa\n");
+    // if(flags & W_FLAG) printf("Flag W ativa\n");
 
     return a;
 }
