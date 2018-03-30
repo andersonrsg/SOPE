@@ -5,6 +5,7 @@
 // Fernando Oliveira -
 //
 #include <stdio.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -26,37 +27,39 @@
 
 typedef struct Analysis Analysis;
 struct Analysis {
-
-    unsigned char *pattern;
-    unsigned char *matchesfound;
+    
+    char *pattern;
+    char *matchesfound;
     unsigned long matchesCount;
-
+    
 };
 
 // Assinaturas
 int main(int argc, char *argv[]);
 int getSomething();
-int simgrep(char *pattern, char **filenames, unsigned char flags);
+int simgrep(char *pattern, char **filenames, char flags);
 int is_file_or_dir(char *curr);
 char **getDirContent(char *directory);
 // void work();
 // bool saveToFile();
-unsigned char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada);
+char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada);
 unsigned long obtemTamanhoDoArquivo(FILE* f);
-void leArquivo(FILE* f, unsigned char* ptr, unsigned long TamanhoEsperado);
-Analysis analyseFile(unsigned char* ptr, unsigned long tamanho, unsigned char* pattern, unsigned long tamanhoPattern);
+void leArquivo(FILE* f, char* ptr, unsigned long TamanhoEsperado);
+Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern);
+
+char flags = 0x00;
 
 // Main
-int main(int argc, char *argv[]){
-    unsigned char flags = 0x00;
+int main(int argc, char *argv[]) {
+    
     regex_t regex;
     int re, k=0;
     char msg[100],
-        *args = NULL,
-        *token,
-        *pattern = NULL,
-        **files = NULL;
-
+    *args = NULL,
+    *token,
+    *pattern = NULL,
+    **files = NULL;
+    
     /* Concatenate args */
     args = (char*)malloc(strlen(argv[0]));
     strcpy(args, argv[0]);
@@ -65,20 +68,20 @@ int main(int argc, char *argv[]){
         strcat(args, " ");
         strcat(args, argv[i]);
     }
-
+    
     /* Generate acceptable input format */
     if (regcomp(&regex, "(\\.\\/simgrep(\\s*-[ilncwr] *)*\\s*(\\w)+(( +(\\w)+\\.[a-z]{1,4})|( *\\.{1,2}(\\/\\w+)*\\/*))* *)$", REG_EXTENDED)) {
         fprintf(stderr, "Could not compile regex\n");
         exit(1);
     }
-
+    
     /* test input agains acceptable input format */
     re = regexec(&regex, args, 0, NULL, 0);
     if (!re) {
-
+        
         token = strtok(args, " "); /* Break string into tokens */
         token = strtok(NULL, " "); /* Ignore first token ./simgrep */
-
+        
         while (token != NULL) {	/* Cicle trough remaining tokens */
             if(!strcmp(token, "-i")) flags |= I_FLAG; /* Set I flag */
             else if(!strcmp(token, "-l")) flags |= L_FLAG; /* Set L flag */
@@ -93,7 +96,7 @@ int main(int argc, char *argv[]){
                     exit(1);
                 }
                 re = regexec(&regex, token, 0, NULL, 0);
-
+                
                 if(!re) pattern = token;	/* token is a pattern */
                 else if(re == REG_NOMATCH){
                     files = (char**)realloc(files, (k+1) * sizeof(char*));
@@ -102,30 +105,30 @@ int main(int argc, char *argv[]){
                     k++;
                 }
             }
-
+            
             token = strtok(NULL, " "); /* get next token */
         }
-
-
+        
+        
         if((flags & R_FLAG) && (files == NULL)){
             files = (char**)realloc(files, (k+1) * sizeof(char*));
             *files = ".";
         }
         else if(!(flags & R_FLAG) && (files == NULL)){
-
+            
             /*
-                TODO: if R flag is down and files is NULL
-                then simgrep should read from stdin
-            */
-
+             TODO: if R flag is down and files is NULL
+             then simgrep should read from stdin
+             */
+            
             files = (char**)realloc(files, (k+1) * sizeof(char*));
             *files = "stdin";
         }
         else{
             files[k] = NULL; /* set end of files */
         }
-
-
+        
+        
         if(simgrep(pattern, files, flags)){
             perror("simgrep");
             exit(1);
@@ -142,17 +145,17 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-int simgrep(char *pattern, char **filenames, unsigned char flags) {
+int simgrep(char *pattern, char **filenames, char flags) {
     int i=0, j=0, k=0, r;
     char **directories = NULL,
-         **files = NULL,
-         **dircontent = NULL;
+    **files = NULL,
+    **dircontent = NULL;
     pid_t pid;
-
+    
     while(filenames[i] != NULL) {
         /* Check if filename is a file or a directory */
         r = is_file_or_dir(filenames[i]);
-
+        
         if(r == 1) /* filename is a file */
         {
             /* reallocate memory to add new file */
@@ -181,43 +184,39 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
     /* add a null terminator to the array */
     files = (char**)realloc(files, (j+1) * sizeof(char*));
     files[j] = NULL;
-
+    
     /* add a null terminator to the array */
     directories = (char**)realloc(directories, (k+1) * sizeof(char*));
     directories[k] = NULL;
-
+    
     j = k = 0;
     printf("Files: \n");
     while(files[j] != NULL)
-    printf("%s\n", files[j++]);
-
+        printf("%s\n", files[j++]);
+    
     printf("\n");
-
+    
     printf("directories: \n");
     while(directories[k] != NULL)
-    printf("%s\n", directories[k++]);
-
+        printf("%s\n", directories[k++]);
+    
     printf("\n");
-
+    
     /* flags options */
-    if(flags & I_FLAG) printf("Flag I ativa\n");
-    if(flags & L_FLAG) printf("Flag L ativa\n");
-    if(flags & N_FLAG) printf("Flag N ativa\n");
-    if(flags & C_FLAG) printf("Flag C ativa\n");
-    if(flags & W_FLAG) printf("Flag W ativa\n");
-    if(flags & R_FLAG){
+    
+    if(flags & R_FLAG) {
         printf("Flag R ativa\n");
         for (i = 0; directories[i] != NULL; i++) {
             if((pid = fork()) < 0){
                 fprintf(stderr, "Error in fork\n");
                 exit(2);
             }
-            else if(pid){
+            else if(pid) {
                 waitpid(pid, &r , 0);
             }
-            else{
+            else {
                 dircontent = getDirContent(directories[i]);
-                if(simgrep(pattern, dircontent, flags)){
+                if(simgrep(pattern, dircontent, flags)) {
                     perror("simgrep invocation on child returned an error");
                     exit(1);
                 }
@@ -227,19 +226,29 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 exit(0);
             }
         }
+    } else {
+        if (!(flags & L_FLAG)) {
+            printf("%s", files[0]);
+        }
+        unsigned long TamanhoDoArquivo;
+        char* Dados;
+        
+        Dados = leArquivoDeEntrada(files[0], &TamanhoDoArquivo);
+        Analysis a = analyseFile(Dados, TamanhoDoArquivo, pattern);
+        
     }
-
+    
     printf("\n");
-
+    
     return 0;
 }
 
 int is_file_or_dir(char *file){
     struct stat fileStat;
-
+    
     if(stat(file, &fileStat) < 0)
-    return -1;
-
+        return -1;
+    
     return S_ISREG(fileStat.st_mode);
 }
 
@@ -248,49 +257,49 @@ char **getDirContent(char *directory){
     struct dirent *dp;
     int i=0;
     char *filepath = NULL,
-         **filenames = NULL;
-
+    **filenames = NULL;
+    
     /* open directory to read its content */
     if((dir = opendir(directory)) == NULL){
         fprintf(stderr, "Cannot open %s\n", directory);
         return NULL;
     }
-
+    
     /* read directory content */
     while((dp = readdir(dir)) != NULL){
-
+        
         /* skip first two entries: "." and ".." as these don't interest us */
         if(!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")){
             continue;
         }
-
+        
         /* realloc memory to fit "/", "<filename>" and '\0' to the current filepath */
         filepath = (char*)realloc(filepath, strlen(directory)+strlen(dp->d_name)+2);
-
+        
         /* append /<filename> to current filepath */
         filepath[0] = '\0';
         strcpy(filepath, directory);
         strcat(filepath, "/");
         strcat(filepath, dp->d_name);
-
+        
         /* realloc memomy to add new filepath */
         filenames = (char**)realloc(filenames, (i+1)*sizeof(char*));
-
+        
         /* allocate memory to fit filepath + '\0' */
         filenames[i] = (char*)malloc(strlen(filepath)+1);
-
+        
         strcpy(filenames[i], filepath);
         i++;
     }
     /* add a null terminator to the array */
     filenames = (char**)realloc(filenames, (i+1)*sizeof(char*));
     filenames[i] = NULL;
-
+    
     closedir(dir);
     return filenames;
 }
 
-unsigned char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada) {
+char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada) {
     FILE* arq;
     // Tenta abrir o arquivo
     arq = fopen(nomeEntrada, "rb");
@@ -300,10 +309,10 @@ unsigned char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada) 
     }
     *tamEntrada = obtemTamanhoDoArquivo(arq);
     // printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
-
+    
     // Aloca memória para ler todos os bytes do arquivo
-    unsigned char *ptr;
-    ptr = (unsigned char*)malloc(sizeof(unsigned char) * *tamEntrada);
+    char *ptr;
+    ptr = (char*)malloc(sizeof(char) * *tamEntrada);
     if(ptr == NULL) { // Testa se conseguiu alocar
         // printf("Erro na alocação da memória!\n");
         exit(1);
@@ -320,10 +329,10 @@ unsigned long obtemTamanhoDoArquivo(FILE* f) {
     return len;
 }
 
-void leArquivo(FILE* f, unsigned char* ptr, unsigned long TamanhoEsperado) {
+void leArquivo(FILE* f, char* ptr, unsigned long TamanhoEsperado) {
     unsigned long NroDeBytesLidos;
-    NroDeBytesLidos = fread(ptr, sizeof(unsigned char), TamanhoEsperado, f);
-
+    NroDeBytesLidos = fread(ptr, sizeof(char), TamanhoEsperado, f);
+    
     if(NroDeBytesLidos != TamanhoEsperado) { // verifica se a leitura funcionou
         printf("Erro na Leitura do arquivo!\n");
         printf("Nro de bytes lidos: %ld", NroDeBytesLidos);
@@ -333,36 +342,102 @@ void leArquivo(FILE* f, unsigned char* ptr, unsigned long TamanhoEsperado) {
     }
 }
 
-Analysis analyseFile(unsigned char* ptr, unsigned long tamanho, unsigned char* pattern, unsigned long tamanhoPattern) {
-
+Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
+    
     struct Analysis a;
+    a.matchesCount = 0;
     unsigned long pos = 0;
     unsigned long posTamPattern = 0;
+    unsigned long line = 1;
+    
+    // printf("pos: %ld, postampatt: %ld, patter: %s\n", pos, posTamPattern, pattern);
+    
+    a.pattern = (char*)malloc(sizeof(char) * sizeof(pattern));
+    a.pattern = pattern;
+    
+    char *inicioPalavra = ptr;
+    
+    // Montar String
 
-    unsigned char *inicioPalavra = ptr;
-    unsigned char *inicioPalavraPattern = pattern;
-
-    // unsigned char *pos = ptr;
-
-    while (pos < tamanho) {
-        if (inicioPalavra == inicioPalavraPattern) {
-
-            inicioPalavra++;
-            inicioPalavraPattern++;
-            posTamPattern++;
-
-        } else {
-            inicioPalavra = &ptr[pos];
-            inicioPalavraPattern = pattern;
-            posTamPattern = 0;
+    char *tok;
+    char *saveptr;
+    char *lowerCased;
+    char *buffer;
+    tok = strtok_r(inicioPalavra, "\n", &saveptr);
+    
+    while (tok != NULL) {
+        
+        char *copy = strdup(tok);
+        char *newPattern = strdup(pattern);
+        
+        int wFlagFound = 0;
+        
+        if(flags & I_FLAG) {
+            char *init = copy;
+            for ( ; *init; ++init) *init = tolower(*init);
+            
+            init = newPattern;
+            for ( ; *init; ++init) *init = tolower(*init);
         }
+        
+        
+        char *p = tok;
+        size_t n = strlen( newPattern );
+        
+        if ((p = strstr(copy, newPattern)) != NULL) {
+            
+            
+            
+                if (flags & W_FLAG) {
+                    char *q = p + n;
+                    if ( p == newPattern || isblank( ( unsigned char ) *( p - 1 ) ) ) {
+                        if ( *q == '\0' || isblank( ( unsigned char ) *q ) ) {
+                            wFlagFound = 1;
+                        }
+                    }
+                    p = q;
+                } else {
+                    
+                }
+            
 
-        if (tamanhoPattern == posTamPattern) {
+            
+            if(flags & N_FLAG) {
+                const int n = snprintf(NULL, 0, "%lu", line);
+                buffer = (char*)malloc(sizeof(char) * n+2);
+                int c = snprintf(buffer, n+1, "%lu", line);
+                buffer[n] = ':';
+                buffer[n+1] = '\0';
+            } else {
+                buffer = (char*)malloc(sizeof(char));
+                buffer = "";
+            }
+            
+            if (!(flags & L_FLAG)) {
+                if (flags & W_FLAG) {
+                    if (wFlagFound) {
+                        printf("%s%s\n", buffer, tok);
+                    }
+                } else {
+                    printf("%s%s\n", buffer, tok);
+                }
+            }
+            
             a.matchesCount++;
         }
-
-        pos++;
+        
+        line++;
+        tok = strtok_r(NULL, "\n", &saveptr);
+        
     }
-
+    
+    if(flags & L_FLAG) printf("Flag L ativa\n");
+    if(flags & N_FLAG) printf("Flag N ativa\n");
+    if(flags & C_FLAG) printf("Flag C ativa\n");
+    if(flags & W_FLAG) printf("Flag W ativa\n");
+    
     return a;
 }
+
+
+
