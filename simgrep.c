@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Generate acceptable input format */
-    if (regcomp(&regex, "(\\.\\/simgrep( *-[ilncwr] *)* *[a-zA-Z0-9]+(( +[a-zA-Z0-9]+\\.[a-z]{1,4})|( *\\.{1,2}(\\/[a-zA-Z0-9]+(\\.[a-z]{1,4})?)*\\/*))* *)$", REG_EXTENDED)) {
+    if (regcomp(&regex, "(\\.\\/simgrep( *-[ilncwr] *)* *[a-zA-Z0-9]+( +(\\.{1,2}\\/*)?([a-zA-Z0-9]+(\\.[a-z]{1,4}|\\/*))*)*)$", REG_EXTENDED)) {
         fprintf(stderr, "Could not compile regex\n");
         exit(1);
     }
@@ -91,18 +91,17 @@ int main(int argc, char *argv[]) {
             else if(!strcmp(token, "-w")) flags |= W_FLAG; /* Set W flag */
             else if(!strcmp(token, "-r")) flags |= R_FLAG; /* Set R flag */
             else {
-                re = regcomp(&regex, "^[a-zA-Z0-9]+$", REG_EXTENDED); /* Test if token is a pattern */
-                if (re) {
+                /* Test if token is a pattern */
+                if (regcomp(&regex, "^[a-zA-Z0-9]+$", REG_EXTENDED)) {
                     fprintf(stderr, "Could not compile regex\n");
                     exit(1);
                 }
-                re = regexec(&regex, token, 0, NULL, 0);
 
-                if(!re) pattern = token;	/* token is a pattern */
-                else if(re == REG_NOMATCH){
+                if(!regexec(&regex, token, 0, NULL, 0) && (pattern == NULL)) pattern = token;	/* token is a pattern */
+                else{ /* token is a filename */
                     files = (char**)realloc(files, (k+1) * sizeof(char*));
                     files[k] = (char*)malloc(strlen(token)+1);
-                    files[k] = token; /* token is a filename */
+                    files[k] = token;
                     k++;
                 }
             }
@@ -112,7 +111,7 @@ int main(int argc, char *argv[]) {
 
 
         if((flags & R_FLAG) && (files == NULL)){
-            files = (char**)realloc(files, (k+1) * sizeof(char*));
+            files = (char**)realloc(files, (k++) * sizeof(char*));
             *files = ".";
         }
         else if(!(flags & R_FLAG) && (files == NULL)){
@@ -122,12 +121,13 @@ int main(int argc, char *argv[]) {
              then simgrep should read from stdin
              */
 
-            files = (char**)realloc(files, (k+1) * sizeof(char*));
+            files = (char**)realloc(files, (k++) * sizeof(char*));
             *files = "stdin";
         }
         else{
             files[k] = NULL; /* set end of files */
         }
+
 
 
         if(simgrep(pattern, files, flags)){
@@ -143,6 +143,10 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Regex match failed: %s\n", msg);
         exit(1);
     }
+
+    free(files);
+    free(pattern);
+    free(args);
     return 0;
 }
 
@@ -190,7 +194,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
     directories = (char**)realloc(directories, (k+1) * sizeof(char*));
     directories[k] = NULL;
 
-    /*
+/*
     j = k = 0;
      printf("Files: \n");
      while(files[j] != NULL)
@@ -203,7 +207,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
      printf("%s\n", directories[k++]);
 
      printf("\n");
-     */
+*/
 
     /* flags options */
 
@@ -256,7 +260,6 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
 
     return 0;
 }
-
 
 int is_file_or_dir(char *file){
     struct stat fileStat;
