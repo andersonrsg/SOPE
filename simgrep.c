@@ -55,10 +55,10 @@ int main(int argc, char *argv[]) {
     regex_t regex;
     int re, k=0;
     char msg[100],
-    *args = NULL,
-    *token,
-    *pattern = NULL,
-    **files = NULL;
+        *args = NULL,
+        *token,
+        *pattern = NULL,
+        **files = NULL;
 
 
     /* Concatenate args */
@@ -217,9 +217,16 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             }
             else {
                 dircontent = getDirContent(directories[i]);
-                if(simgrep(pattern, dircontent, flags)) {
-                    perror("simgrep invocation on child returned an error");
-                    exit(1);
+
+                if((dircontent != NULL) && (dircontent[0] != NULL)){
+                    if(simgrep(pattern, dircontent, flags)) {
+                        perror("simgrep invocation on child returned an error");
+                        exit(1);
+                    }
+                }
+                else
+                {
+                    printf("getDirContent return null\n");
                 }
                 free(directories);
                 free(files);
@@ -227,20 +234,21 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 exit(0);
             }
         }
-    } else {
+    }
+    
+    for (i = 0; files[i] != NULL; i++) {
         if (!(flags & L_FLAG)) {
-            printf("%s", files[0]);
+            printf("%s ", files[i]);
         }
         unsigned long TamanhoDoArquivo;
         char* Dados;
 
-        Dados = leArquivoDeEntrada(files[0], &TamanhoDoArquivo);
+        Dados = leArquivoDeEntrada(files[i], &TamanhoDoArquivo);
         Analysis a = analyseFile(Dados, TamanhoDoArquivo, pattern);
 
         if (flags & C_FLAG) {
             printf("%s\n", a.matchesfound);
         }
-
     }
 
     printf("\n");
