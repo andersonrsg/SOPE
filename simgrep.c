@@ -199,34 +199,11 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
     //
     //  printf("\n");
 
+    /*
+    TODO:
+    wait until signal is received from siblin process
+    */
 
-    /* flags options */
-    if(flags & R_FLAG) {
-        // printf("Flag R ativa\n");
-        for (i = 0; directories[i] != NULL; i++) {
-            if((pid = fork()) < 0){
-                fprintf(stderr, "Error in fork\n");
-                exit(2);
-            }
-            else if(pid) {
-                waitpid(pid, &r , 0);
-            }
-            else {
-                dircontent = getDirContent(directories[i]);
-
-                if((dircontent != NULL) && (dircontent[0] != NULL)){
-                    if(simgrep(pattern, dircontent, flags)) {
-                        perror("simgrep invocation on child returned an error");
-                        exit(1);
-                    }
-                }
-                free(directories);
-                free(files);
-                free(dircontent);
-                exit(0);
-            }
-        }
-    }
 
     for (i = 0; files[i] != NULL; i++) {
         // unsigned long TamanhoDoArquivo;
@@ -262,7 +239,33 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         }
     }
 
+    /* flags options */
+    if(flags & R_FLAG) {
+        // printf("Flag R ativa\n");
+        for (i = 0; directories[i] != NULL; i++) {
+            if((pid = fork()) < 0){
+                fprintf(stderr, "Error in fork\n");
+                exit(2);
+            }
+            else if(pid) {
+                // waitpid(pid, &r , WNOHANG);
+            }
+            else {
+                dircontent = getDirContent(directories[i]);
 
+                if((dircontent != NULL) && (dircontent[0] != NULL)){
+                    if(simgrep(pattern, dircontent, flags)) {
+                        perror("simgrep invocation on child returned an error");
+                        exit(1);
+                    }
+                }
+                free(directories);
+                free(files);
+                free(dircontent);
+                exit(0);
+            }
+        }
+    }
 
     return 0;
 }
@@ -430,27 +433,27 @@ int grep(char *pattern, char* file, unsigned char flags){
 }
 
 // char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada) {
-    FILE* arq;
-    // Tenta abrir o arquivo
-    arq = fopen(nomeEntrada, "rb");
-    if(arq == NULL) {
-        printf("Arquivo %s não existe.\n", nomeEntrada);
-        exit(1);
-    }
-    *tamEntrada = obtemTamanhoDoArquivo(arq);
-    // printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
-
-    // Aloca memória para ler todos os bytes do arquivo
-    char *ptr;
-    ptr = (char*)malloc(sizeof(char) * *tamEntrada);
-    if(ptr == NULL) { // Testa se conseguiu alocar
-        // printf("Erro na alocação da memória!\n");
-        exit(1);
-    }
-    leArquivo(arq, ptr, *tamEntrada);
-    fclose(arq); // fecha o arquivo
-    return ptr;
-}
+//     FILE* arq;
+//     // Tenta abrir o arquivo
+//     arq = fopen(nomeEntrada, "rb");
+//     if(arq == NULL) {
+//         printf("Arquivo %s não existe.\n", nomeEntrada);
+//         exit(1);
+//     }
+//     *tamEntrada = obtemTamanhoDoArquivo(arq);
+//     // printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
+//
+//     // Aloca memória para ler todos os bytes do arquivo
+//     char *ptr;
+//     ptr = (char*)malloc(sizeof(char) * *tamEntrada);
+//     if(ptr == NULL) { // Testa se conseguiu alocar
+//         // printf("Erro na alocação da memória!\n");
+//         exit(1);
+//     }
+//     leArquivo(arq, ptr, *tamEntrada);
+//     fclose(arq); // fecha o arquivo
+//     return ptr;
+// }
 //
 // unsigned long obtemTamanhoDoArquivo(FILE* f) {
 //     fseek(f, 0, SEEK_END);
