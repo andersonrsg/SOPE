@@ -38,6 +38,9 @@ void sigint_handler(int signo)
     } while(input != 121 && input != 110);
 
     if (input == 121) {
+        // Sends a signal to the group of the calling process.
+        // All child process from a parent will have the same group id.
+        killpg(getpgrp() ,SIGKILL);
         exit(0);
     }
 }
@@ -211,13 +214,13 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             else if(pid) {
 
                 waitpid(pid, &r , 0);
-
+                sleep(10);
             }
             else {
-                sigset_t mask;
-                sigfillset(&mask);
-                sigprocmask(SIG_SETMASK, &mask, NULL);
-                
+                // sigset_t mask;
+                // sigfillset(&mask);
+                // sigprocmask(SIG_SETMASK, &mask, NULL);
+
                 dircontent = getDirContent(directories[i]);
 
                 if((dircontent != NULL) && (dircontent[0] != NULL)){
@@ -227,7 +230,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                     }
                 }
 
-                sleep(10);
+                // sleep(10);
 
                 free(directories);
                 free(files);
