@@ -2,7 +2,7 @@
 //
 // Anderson Gralha - up201710810
 // Arthur Matta	- up201609953
-// Fernando Oliveira -
+// Fernando Oliveira - up201005231
 //
 #include <stdio.h>
 #include <ctype.h>
@@ -26,15 +26,6 @@
 #define W_FLAG  BIT(4)
 #define R_FLAG  BIT(5)
 
-typedef struct Analysis Analysis;
-struct Analysis {
-
-    char *pattern;
-    char *matchesfound;
-    unsigned long matchesCount;
-
-};
-
 // Assinaturas
 int main(int argc, char *argv[]);
 int getSomething();
@@ -42,14 +33,17 @@ int simgrep(char *pattern, char **filenames, unsigned char flags);
 int is_file_or_dir(char *curr);
 char **getDirContent(char *directory);
 int grep(char *pattern, char *file, unsigned char flags);
-// void work();
-// bool saveToFile();
-char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada);
-unsigned long obtemTamanhoDoArquivo(FILE* f);
-void leArquivo(FILE* f, char* ptr, unsigned long TamanhoEsperado);
-Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern);
 
 unsigned char flags = 0x00;
+
+/*
+    TODO:
+    fix -n flag ???
+    signal handlers:
+        ctrl c
+        task finish
+    log file
+*/
 
 // Main
 int main(int argc, char *argv[]) {
@@ -139,7 +133,7 @@ int main(int argc, char *argv[]) {
 }
 
 int simgrep(char *pattern, char **filenames, unsigned char flags) {
-    int i=0, j=0, k=0, r, matches;
+    int i=0, r, matches;
     char **directories = NULL,
          **files = NULL,
          **dircontent = NULL,
@@ -156,102 +150,42 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         r = is_file_or_dir(filenames[i]);
 
         if(r == 1){ /* filename is a file */
-            /* reallocate memory to add new file */
-            files = (char**)realloc(files, (j+1) * sizeof(char*));
-            /* allocate memory for <filename> + end of string character '\0' */
-            files[j] = (char*)malloc(strlen(filenames[i])+1);
-            strcpy(files[j], filenames[i]);
-            j++;
-        }
-        else if(r == 0){ /* filename is a directory */
-            /* reallocate memory to add new directory */
-            directories = (char**)realloc(directories, (k+1) * sizeof(char*));
-            /* allocate memory for <dirname> + end of string character '\0' */
-            directories[k] = (char*)malloc(strlen(filenames[i])+1);
-            strcpy(directories[k], filenames[i]);
-            k++;
-        }
-        else{ /* filename is neither a regular file nor a directory */
-            fprintf(stderr, "File %s not found!\n", filenames[i]);
-            return 1;
-        }
-        i++;
-    }
-    /* add a null terminator to the array */
-    files = (char**)realloc(files, (j+1) * sizeof(char*));
-    files[j] = NULL;
-
-    /* add a null terminator to the array */
-    directories = (char**)realloc(directories, (k+1) * sizeof(char*));
-    directories[k] = NULL;
-
-
-    // j = k = 0;
-    //  printf("Files: \n");
-    //  while(files[j] != NULL)
-    //  printf("%s\n", files[j++]);
-    //
-    //  printf("\n");
-    //
-    //  printf("directories: \n");
-    //  while(directories[k] != NULL)
-    //  printf("%s\n", directories[k++]);
-    //
-    //  printf("\n");
-
-    /*
-    TODO:
-    wait until signal is received from siblin process
-    */
-
-
-    for (i = 0; files[i] != NULL; i++) {
-        // unsigned long TamanhoDoArquivo;
-        // char* Dados;
-        //
-        // Dados = leArquivoDeEntrada(files[i], &TamanhoDoArquivo);
-        // Analysis a = analyseFile(Dados, TamanhoDoArquivo, pattern);
-
-        if ((matches = grep(pattern, files[i], flags)) < 0) {
-            perror("simgrep: grep");
-            exit(1);
-        }
-
-        if((flags & C_FLAG) && (flags & L_FLAG)) {
-            buffer = (char*)realloc(buffer, sizeof(char) * 3);
-            buffer[0] = ':';
-            if (matches > 0) {
-                buffer[1] = '1';
-            } else {
-                buffer[1] = '0';
+            if ((matches = grep(pattern, filenames[i], flags)) < 0) {
+                perror("simgrep: grep");
+                exit(1);
             }
 
-            buffer[2] = '\0';
+            if((flags & C_FLAG) && (flags & L_FLAG)) {
+                buffer = (char*)realloc(buffer, sizeof(char) * 3);
+                buffer[0] = ':';
+                if (matches > 0) {
+                    buffer[1] = '1';
+                } else {
+                    buffer[1] = '0';
+                }
 
-            printf("%s:%s\n", files[i], buffer);
-            printf("%s\n", files[i]);
-        }
-        else if ((flags & L_FLAG) && (matches > 0)) {
-            printf("%s\n", files[i]);
-        }
-        else if ((flags & C_FLAG)) {
-            printf("%s:%d\n", files[i], matches);
-        }
-    }
+                buffer[2] = '\0';
 
-    /* flags options */
-    if(flags & R_FLAG) {
-        // printf("Flag R ativa\n");
-        for (i = 0; directories[i] != NULL; i++) {
+                printf("%s:%s\n", filenames[i], buffer);
+                printf("%s\n", filenames[i]);
+            }
+            else if ((flags & L_FLAG) && (matches > 0)) {
+                printf("%s\n", filenames[i]);
+            }
+            else if ((flags & C_FLAG)) {
+                printf("%s:%d\n", filenames[i], matches);
+            }
+        }
+        else if(r == 0){ /* filename is a directory */
             if((pid = fork()) < 0){
                 fprintf(stderr, "Error in fork\n");
                 exit(2);
             }
             else if(pid) {
-                // waitpid(pid, &r , WNOHANG);
+                waitpid(pid, &r , 0);
             }
             else {
-                dircontent = getDirContent(directories[i]);
+                dircontent = getDirContent(filenames[i]);
 
                 if((dircontent != NULL) && (dircontent[0] != NULL)){
                     if(simgrep(pattern, dircontent, flags)) {
@@ -265,8 +199,12 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 exit(0);
             }
         }
+        else{ /* filename is neither a regular file nor a directory */
+            fprintf(stderr, "File %s not found!\n", filenames[i]);
+            //return 1;
+        }
+        i++;
     }
-
     return 0;
 }
 
@@ -388,9 +326,9 @@ int grep(char *pattern, char* file, unsigned char flags){
                 line[n] = ':';
                 line[n+1] = '\0';
             }
-            else{
-                if (line == NULL) line = (char*)realloc(line, sizeof(char));
-                line = "";
+            else if(flags & R_FLAG){
+                if (line == NULL) line = (char*)realloc(line, 2*sizeof(char));
+                line = ": ";
             }
 
             /* if w flag is set, check if match is from a whole word */
@@ -413,10 +351,15 @@ int grep(char *pattern, char* file, unsigned char flags){
                     wflag = 0;
                 }
             }
+            else if(flags & R_FLAG){
+                if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
+                    printf("%s%s%s\n", file, line, input);
+                }
+            }
             else {
                 matches++;
                 if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                    printf("%s%s\n", line, input);
+                    printf("%s\n", input);
                 }
             }
 
@@ -431,131 +374,3 @@ int grep(char *pattern, char* file, unsigned char flags){
     /* return number of matched strings */
     return matches;
 }
-
-// char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada) {
-//     FILE* arq;
-//     // Tenta abrir o arquivo
-//     arq = fopen(nomeEntrada, "rb");
-//     if(arq == NULL) {
-//         printf("Arquivo %s não existe.\n", nomeEntrada);
-//         exit(1);
-//     }
-//     *tamEntrada = obtemTamanhoDoArquivo(arq);
-//     // printf("O tamanho do arquivo %s é %ld bytes.\n", nomeEntrada, *tamEntrada);
-//
-//     // Aloca memória para ler todos os bytes do arquivo
-//     char *ptr;
-//     ptr = (char*)malloc(sizeof(char) * *tamEntrada);
-//     if(ptr == NULL) { // Testa se conseguiu alocar
-//         // printf("Erro na alocação da memória!\n");
-//         exit(1);
-//     }
-//     leArquivo(arq, ptr, *tamEntrada);
-//     fclose(arq); // fecha o arquivo
-//     return ptr;
-// }
-//
-// unsigned long obtemTamanhoDoArquivo(FILE* f) {
-//     fseek(f, 0, SEEK_END);
-//     unsigned long len = (unsigned long)ftell(f);
-//     fseek(f, SEEK_SET, 0);
-//     return len;
-// }
-//
-// void leArquivo(FILE* f, char* ptr, unsigned long TamanhoEsperado) {
-//     unsigned long NroDeBytesLidos;
-//     NroDeBytesLidos = fread(ptr, sizeof(char), TamanhoEsperado, f);
-//
-//     if(NroDeBytesLidos != TamanhoEsperado) { // verifica se a leitura funcionou
-//         // printf("Erro na Leitura do arquivo!\n");
-//         // printf("Nro de bytes lidos: %ld", NroDeBytesLidos);
-//         exit(1);
-//     } else {
-//         // printf("Leitura realizada com sucesso!\n");
-//     }
-// }
-//
-// Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
-//
-//     struct Analysis a;
-//     a.matchesCount = 0;
-//     unsigned long line = 1;
-//
-//     // printf("pos: %ld, postampatt: %ld, patter: %s\n", pos, posTamPattern, pattern);
-//
-//     a.pattern = (char*)malloc(sizeof(char) * sizeof(pattern));
-//     a.pattern = pattern;
-//
-//     char *inicioPalavra = ptr;
-//
-//     // Montar String
-//
-//     char *tok;
-//     char *buffer;
-//
-//     while ( (tok = strsep(&inicioPalavra, "\n")) != NULL) {
-//
-//         char *copy = strdup(tok);
-//         char *newPattern = strdup(pattern);
-//
-//         int wFlagFound = 0;
-//
-//         if(flags & I_FLAG) {
-//             char *init = copy;
-//             for ( ; *init; ++init) *init = tolower(*init);
-//
-//             init = newPattern;
-//             for ( ; *init; ++init) *init = tolower(*init);
-//         }
-//
-//
-//         char *p = tok;
-//         size_t n = strlen( newPattern );
-//
-//         if ((p = strstr(copy, newPattern)) != NULL) {
-//
-//             if (flags & W_FLAG) {
-//                 char *q = p + n;
-//                 if ( p == newPattern || !isalnum (( unsigned char ) *(p - 1))) {
-//                     if ( *q == '\0' || !isalnum (( unsigned char ) *q)) {
-//                         wFlagFound = 1;
-//                     }
-//                 }
-//                 p = q;
-//             }
-//             // char *buffer;
-//
-//             if((flags & N_FLAG) && !(flags & C_FLAG)) {
-//                 const int n = snprintf(NULL, 0, "%lu", line);
-//                 buffer = (char*)malloc(sizeof(char) * n+2);
-//                 snprintf(buffer, n+1, "%lu", line);
-//                 buffer[n] = ':';
-//                 buffer[n+1] = '\0';
-//             } else {
-//                 buffer = (char*)malloc(sizeof(char));
-//                 buffer = "";
-//             }
-//
-//             if (flags & W_FLAG) {
-//                 if (wFlagFound) {
-//                     a.matchesCount++;
-//                     if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-//                         printf("%s%s\n", buffer, tok);
-//                     }
-//                 }
-//             } else {
-//                 a.matchesCount++;
-//                 if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-//                     printf("%s%s\n", buffer, tok);
-//                 }
-//             }
-//
-//
-//         }
-//
-//         line++;
-//
-//     }
-//
-//     return a;
-// }
