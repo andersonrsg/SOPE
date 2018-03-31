@@ -29,7 +29,17 @@
 
 void sigint_handler(int signo)
 {
-    printf("Are you sure you want to terminate the program? (Y/N)");
+    printf("\nAre you sure you want to terminate the program? (Y/N)");
+    char input;
+    
+    do {
+        input = getchar();
+        input = tolower(input);
+    } while(input != 121 && input != 110);
+
+    if (input == 121) {
+        exit(0);
+    }
 }
 
 // Assinaturas
@@ -46,7 +56,7 @@ unsigned char flags = 0x00;
     TODO:
     fix -n flag ???
     signal handlers:
-        ctrl c
+        fazer processos filhos esperarem?
         task finish
     log file
 */
@@ -65,6 +75,12 @@ int main(int argc, char *argv[]) {
     action.sa_handler = sigint_handler;
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
+    
+    if (signal(SIGINT,sigint_handler) < 0)
+    {
+        fprintf(stderr,"Unable to install SIGINT handler\n");
+        exit(1); 
+    }
 
 
     /* Concatenate args */
@@ -160,7 +176,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         /* Check if filename is a file or a directory */
         r = is_file_or_dir(filenames[i]);
 
-        if(r == 1){ /* filename is a file */
+        if(r == 1) { /* filename is a file */
             if ((matches = grep(pattern, filenames[i], flags)) < 0) {
                 perror("simgrep: grep");
                 exit(1);
@@ -210,6 +226,9 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                         exit(1);
                     }
                 }
+
+                sleep(10);
+
                 free(directories);
                 free(files);
                 free(dircontent);
