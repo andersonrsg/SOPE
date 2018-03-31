@@ -139,10 +139,11 @@ int main(int argc, char *argv[]) {
 }
 
 int simgrep(char *pattern, char **filenames, unsigned char flags) {
-    int i=0, j=0, k=0, r;
+    int i=0, j=0, k=0, r, matches;
     char **directories = NULL,
-    **files = NULL,
-    **dircontent = NULL;
+         **files = NULL,
+         **dircontent = NULL,
+         *buffer = NULL;
     pid_t pid;
 
     if(!strcmp(*filenames, "stdin")){
@@ -154,8 +155,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         /* Check if filename is a file or a directory */
         r = is_file_or_dir(filenames[i]);
 
-        if(r == 1) /* filename is a file */
-        {
+        if(r == 1){ /* filename is a file */
             /* reallocate memory to add new file */
             files = (char**)realloc(files, (j+1) * sizeof(char*));
             /* allocate memory for <filename> + end of string character '\0' */
@@ -163,8 +163,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             strcpy(files[j], filenames[i]);
             j++;
         }
-        else if(r == 0) /* filename is a directory */
-        {
+        else if(r == 0){ /* filename is a directory */
             /* reallocate memory to add new directory */
             directories = (char**)realloc(directories, (k+1) * sizeof(char*));
             /* allocate memory for <dirname> + end of string character '\0' */
@@ -172,8 +171,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             strcpy(directories[k], filenames[i]);
             k++;
         }
-        else /* filename is neither a regular file nor a directory */
-        {
+        else{ /* filename is neither a regular file nor a directory */
             fprintf(stderr, "File %s not found!\n", filenames[i]);
             return 1;
         }
@@ -203,7 +201,6 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
 
 
     /* flags options */
-
     if(flags & R_FLAG) {
         // printf("Flag R ativa\n");
         for (i = 0; directories[i] != NULL; i++) {
@@ -232,18 +229,21 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
     }
 
     for (i = 0; files[i] != NULL; i++) {
-        unsigned long TamanhoDoArquivo;
-        char* Dados;
+        // unsigned long TamanhoDoArquivo;
+        // char* Dados;
+        //
+        // Dados = leArquivoDeEntrada(files[i], &TamanhoDoArquivo);
+        // Analysis a = analyseFile(Dados, TamanhoDoArquivo, pattern);
 
-        Dados = leArquivoDeEntrada(files[i], &TamanhoDoArquivo);
-        Analysis a = analyseFile(Dados, TamanhoDoArquivo, pattern);
-
-        char *buffer;
+        if ((matches = grep(pattern, files[i], flags)) < 0) {
+            perror("simgrep: grep");
+            exit(1);
+        }
 
         if((flags & C_FLAG) && (flags & L_FLAG)) {
-            buffer = (char*)malloc(sizeof(char) * 3);
+            buffer = (char*)realloc(buffer, sizeof(char) * 3);
             buffer[0] = ':';
-            if (a.matchesCount > 0) {
+            if (matches > 0) {
                 buffer[1] = '1';
             } else {
                 buffer[1] = '0';
@@ -254,16 +254,15 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             printf("%s:%s\n", files[i], buffer);
             printf("%s\n", files[i]);
         }
-
-        if ((flags & L_FLAG) && a.matchesCount > 0 && !(flags & C_FLAG)) {
+        else if ((flags & L_FLAG) && (matches > 0)) {
             printf("%s\n", files[i]);
         }
-
-        if ((flags & C_FLAG) && !(flags & L_FLAG) && (flags & R_FLAG) ) {
-            printf("%s:%ld\n", files[i], a.matchesCount);
+        else if ((flags & C_FLAG)) {
+            printf("%s:%d\n", files[i], matches);
         }
-
     }
+
+
 
     return 0;
 }
@@ -325,7 +324,7 @@ char **getDirContent(char *directory){
 }
 
 int grep(char *pattern, char* file, unsigned char flags){
-    FILE *ifp, *ofp; /* I/O File pointers */
+    FILE *ifp; /* Input File pointer */
     char *input = NULL, /* input */
          *match = NULL, /* matched string */
          *line = NULL, /* line string */
@@ -346,7 +345,6 @@ int grep(char *pattern, char* file, unsigned char flags){
     else{
         ifp = stdin;
     }
-    ofp = stdout;
 
     /* copy pattern to cpy_pattern to make changes without changing the original string */
     cpy_pattern = strdup(pattern);
@@ -356,8 +354,12 @@ int grep(char *pattern, char* file, unsigned char flags){
     while(fgets(input, MAXLEN, ifp)){
 
         if((ifp == stdin) && (flags & L_FLAG)){
-            fprintf(ofp, "(standard input)\n");
-            exit(0);
+            printf("(standard input)\n");
+            return 0;
+        }
+
+        if (input[strlen(input)-1] == '\n') {
+            input[strlen(input)-1] = '\0';
         }
 
         /* copy input to cpy_input to make changes without changing the original string */
@@ -388,7 +390,7 @@ int grep(char *pattern, char* file, unsigned char flags){
                 line = "";
             }
 
-            /* if flag W is set, check if match is from a whole word */
+            /* if w flag is set, check if match is from a whole word */
             if (flags & W_FLAG) {
                 char *q = match + strlen(cpy_pattern);
                 if ( !strcmp(match, cpy_pattern) || !isalnum (( unsigned char ) *(match - 1))) {
@@ -403,7 +405,7 @@ int grep(char *pattern, char* file, unsigned char flags){
                 if (wflag) {
                     matches++;
                     if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                        fprintf(ofp, "%s%s", line, input);
+                        printf("%s%s\n", line, input);
                     }
                     wflag = 0;
                 }
@@ -411,7 +413,7 @@ int grep(char *pattern, char* file, unsigned char flags){
             else {
                 matches++;
                 if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                    fprintf(ofp, "%s%s", line, input);
+                    printf("%s%s\n", line, input);
                 }
             }
 
@@ -422,13 +424,12 @@ int grep(char *pattern, char* file, unsigned char flags){
 
     /* close File pointers */
     fclose(ifp);
-    fclose(ofp);
 
     /* return number of matched strings */
     return matches;
 }
 
-char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada) {
+// char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada) {
     FILE* arq;
     // Tenta abrir o arquivo
     arq = fopen(nomeEntrada, "rb");
@@ -450,108 +451,108 @@ char* leArquivoDeEntrada(char *nomeEntrada, unsigned long *tamEntrada) {
     fclose(arq); // fecha o arquivo
     return ptr;
 }
-
-unsigned long obtemTamanhoDoArquivo(FILE* f) {
-    fseek(f, 0, SEEK_END);
-    unsigned long len = (unsigned long)ftell(f);
-    fseek(f, SEEK_SET, 0);
-    return len;
-}
-
-void leArquivo(FILE* f, char* ptr, unsigned long TamanhoEsperado) {
-    unsigned long NroDeBytesLidos;
-    NroDeBytesLidos = fread(ptr, sizeof(char), TamanhoEsperado, f);
-
-    if(NroDeBytesLidos != TamanhoEsperado) { // verifica se a leitura funcionou
-        // printf("Erro na Leitura do arquivo!\n");
-        // printf("Nro de bytes lidos: %ld", NroDeBytesLidos);
-        exit(1);
-    } else {
-        // printf("Leitura realizada com sucesso!\n");
-    }
-}
-
-Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
-
-    struct Analysis a;
-    a.matchesCount = 0;
-    unsigned long line = 1;
-
-    // printf("pos: %ld, postampatt: %ld, patter: %s\n", pos, posTamPattern, pattern);
-
-    a.pattern = (char*)malloc(sizeof(char) * sizeof(pattern));
-    a.pattern = pattern;
-
-    char *inicioPalavra = ptr;
-
-    // Montar String
-
-    char *tok;
-    char *buffer;
-
-    while ( (tok = strsep(&inicioPalavra, "\n")) != NULL) {
-
-        char *copy = strdup(tok);
-        char *newPattern = strdup(pattern);
-
-        int wFlagFound = 0;
-
-        if(flags & I_FLAG) {
-            char *init = copy;
-            for ( ; *init; ++init) *init = tolower(*init);
-
-            init = newPattern;
-            for ( ; *init; ++init) *init = tolower(*init);
-        }
-
-
-        char *p = tok;
-        size_t n = strlen( newPattern );
-
-        if ((p = strstr(copy, newPattern)) != NULL) {
-
-            if (flags & W_FLAG) {
-                char *q = p + n;
-                if ( p == newPattern || !isalnum (( unsigned char ) *(p - 1))) {
-                    if ( *q == '\0' || !isalnum (( unsigned char ) *q)) {
-                        wFlagFound = 1;
-                    }
-                }
-                p = q;
-            }
-            // char *buffer;
-
-            if((flags & N_FLAG) && !(flags & C_FLAG)) {
-                const int n = snprintf(NULL, 0, "%lu", line);
-                buffer = (char*)malloc(sizeof(char) * n+2);
-                snprintf(buffer, n+1, "%lu", line);
-                buffer[n] = ':';
-                buffer[n+1] = '\0';
-            } else {
-                buffer = (char*)malloc(sizeof(char));
-                buffer = "";
-            }
-
-            if (flags & W_FLAG) {
-                if (wFlagFound) {
-                    a.matchesCount++;
-                    if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                        printf("%s%s\n", buffer, tok);
-                    }
-                }
-            } else {
-                a.matchesCount++;
-                if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                    printf("%s%s\n", buffer, tok);
-                }
-            }
-
-
-        }
-
-        line++;
-
-    }
-
-    return a;
-}
+//
+// unsigned long obtemTamanhoDoArquivo(FILE* f) {
+//     fseek(f, 0, SEEK_END);
+//     unsigned long len = (unsigned long)ftell(f);
+//     fseek(f, SEEK_SET, 0);
+//     return len;
+// }
+//
+// void leArquivo(FILE* f, char* ptr, unsigned long TamanhoEsperado) {
+//     unsigned long NroDeBytesLidos;
+//     NroDeBytesLidos = fread(ptr, sizeof(char), TamanhoEsperado, f);
+//
+//     if(NroDeBytesLidos != TamanhoEsperado) { // verifica se a leitura funcionou
+//         // printf("Erro na Leitura do arquivo!\n");
+//         // printf("Nro de bytes lidos: %ld", NroDeBytesLidos);
+//         exit(1);
+//     } else {
+//         // printf("Leitura realizada com sucesso!\n");
+//     }
+// }
+//
+// Analysis analyseFile(char* ptr, unsigned long tamanho, char* pattern) {
+//
+//     struct Analysis a;
+//     a.matchesCount = 0;
+//     unsigned long line = 1;
+//
+//     // printf("pos: %ld, postampatt: %ld, patter: %s\n", pos, posTamPattern, pattern);
+//
+//     a.pattern = (char*)malloc(sizeof(char) * sizeof(pattern));
+//     a.pattern = pattern;
+//
+//     char *inicioPalavra = ptr;
+//
+//     // Montar String
+//
+//     char *tok;
+//     char *buffer;
+//
+//     while ( (tok = strsep(&inicioPalavra, "\n")) != NULL) {
+//
+//         char *copy = strdup(tok);
+//         char *newPattern = strdup(pattern);
+//
+//         int wFlagFound = 0;
+//
+//         if(flags & I_FLAG) {
+//             char *init = copy;
+//             for ( ; *init; ++init) *init = tolower(*init);
+//
+//             init = newPattern;
+//             for ( ; *init; ++init) *init = tolower(*init);
+//         }
+//
+//
+//         char *p = tok;
+//         size_t n = strlen( newPattern );
+//
+//         if ((p = strstr(copy, newPattern)) != NULL) {
+//
+//             if (flags & W_FLAG) {
+//                 char *q = p + n;
+//                 if ( p == newPattern || !isalnum (( unsigned char ) *(p - 1))) {
+//                     if ( *q == '\0' || !isalnum (( unsigned char ) *q)) {
+//                         wFlagFound = 1;
+//                     }
+//                 }
+//                 p = q;
+//             }
+//             // char *buffer;
+//
+//             if((flags & N_FLAG) && !(flags & C_FLAG)) {
+//                 const int n = snprintf(NULL, 0, "%lu", line);
+//                 buffer = (char*)malloc(sizeof(char) * n+2);
+//                 snprintf(buffer, n+1, "%lu", line);
+//                 buffer[n] = ':';
+//                 buffer[n+1] = '\0';
+//             } else {
+//                 buffer = (char*)malloc(sizeof(char));
+//                 buffer = "";
+//             }
+//
+//             if (flags & W_FLAG) {
+//                 if (wFlagFound) {
+//                     a.matchesCount++;
+//                     if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
+//                         printf("%s%s\n", buffer, tok);
+//                     }
+//                 }
+//             } else {
+//                 a.matchesCount++;
+//                 if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
+//                     printf("%s%s\n", buffer, tok);
+//                 }
+//             }
+//
+//
+//         }
+//
+//         line++;
+//
+//     }
+//
+//     return a;
+// }
