@@ -68,7 +68,6 @@ unsigned char flags = 0x00;
 /*
     TODO:
     signal handlers:
-        fazer processos filhos esperarem?
         task finish
     log file
 */
