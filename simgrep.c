@@ -42,6 +42,16 @@ void sigint_handler(int signo)
         // All child process from a parent will have the same group id.
         killpg(getpgrp() ,SIGKILL);
         exit(0);
+    } else {
+        killpg(getpgrp() ,SIGCONT);
+    }
+}
+
+void sigintChildHandler(int signo)
+{
+    if (raise(SIGTSTP) != 0) {
+        perror("Failed to pause all processes.");
+        exit(0);
     }
 }
 
@@ -215,9 +225,11 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 sleep(10);
             }
             else {
-                // sigset_t mask;
-                // sigfillset(&mask);
-                // sigprocmask(SIG_SETMASK, &mask, NULL);
+                if (signal(SIGINT,sigintChildHandler) < 0)
+                {
+                    fprintf(stderr,"Unable to install SIGINT handler\n");
+                    exit(1);
+                }
 
                 dircontent = getDirContent(filenames[i]);
 
