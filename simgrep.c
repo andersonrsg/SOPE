@@ -31,7 +31,7 @@ void sigint_handler(int signo)
 {
     printf("\nAre you sure you want to terminate the program? (Y/N)");
     char input;
-    
+
     do {
         input = getchar();
         input = tolower(input);
@@ -57,7 +57,6 @@ unsigned char flags = 0x00;
 
 /*
     TODO:
-    fix -n flag ???
     signal handlers:
         fazer processos filhos esperarem?
         task finish
@@ -78,11 +77,11 @@ int main(int argc, char *argv[]) {
     action.sa_handler = sigint_handler;
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
-    
+
     if (signal(SIGINT,sigint_handler) < 0)
     {
         fprintf(stderr,"Unable to install SIGINT handler\n");
-        exit(1); 
+        exit(1);
     }
 
 
@@ -212,7 +211,6 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 exit(2);
             }
             else if(pid) {
-
                 waitpid(pid, &r , 0);
                 sleep(10);
             }
@@ -221,7 +219,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 // sigfillset(&mask);
                 // sigprocmask(SIG_SETMASK, &mask, NULL);
 
-                dircontent = getDirContent(directories[i]);
+                dircontent = getDirContent(filenames[i]);
 
                 if((dircontent != NULL) && (dircontent[0] != NULL)){
                     if(simgrep(pattern, dircontent, flags)) {
@@ -365,9 +363,9 @@ int grep(char *pattern, char* file, unsigned char flags){
                 line[n] = ':';
                 line[n+1] = '\0';
             }
-            else if(flags & R_FLAG){
-                if (line == NULL) line = (char*)realloc(line, 2*sizeof(char));
-                line = ": ";
+            else{
+                if (line == NULL) line = (char*)realloc(line, sizeof(char));
+                line = "";
             }
 
             /* if w flag is set, check if match is from a whole word */
@@ -392,13 +390,13 @@ int grep(char *pattern, char* file, unsigned char flags){
             }
             else if(flags & R_FLAG){
                 if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                    printf("%s%s%s\n", file, line, input);
+                    printf("%s:%s%s\n", file, line, input);
                 }
             }
             else {
                 matches++;
                 if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                    printf("%s\n", input);
+                    printf("%s%s\n", line, input);
                 }
             }
 
