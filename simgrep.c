@@ -47,6 +47,13 @@ void sigint_handler(int signo)
     }
 }
 
+void sigusr1_handler(int signo){
+    if (signal(signo, sigusr1_handler) == SIG_ERR) {
+        perror("could not set a handler for SIGUSR1");
+        exit(1);
+    }
+}
+
 void sigintChildHandler(int signo)
 {
     if (raise(SIGTSTP) != 0) {
@@ -93,6 +100,11 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    /* install SIGUSR1 handler */
+    if(signal(SIGUSR1, sigusr1_handler) == SIG_ERR){
+        perror("could not set a handler for SIGUSR1");
+        exit(1);
+    }
 
     /* Concatenate args */
     args = (char*)malloc(strlen(argv[0]));
@@ -171,12 +183,10 @@ int main(int argc, char *argv[]) {
 }
 
 int simgrep(char *pattern, char **filenames, unsigned char flags) {
-    int i=0, r, matches;
-    char **directories = NULL,
-         **files = NULL,
-         **dircontent = NULL,
+    int i=0, j=0, r, matches;
+    char **dircontent = NULL,
          *buffer = NULL;
-    pid_t pid;
+    pid_t pid, *pid_arr = NULL;
 
     if(!strcmp(*filenames, "stdin")){
         return grep(pattern, "stdin", flags);
@@ -216,19 +226,26 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         }
         else if(r == 0){ /* filename is a directory */
             if((pid = fork()) < 0){
-                fprintf(stderr, "Error in fork\n");
+                perror("simgrep: fork");
                 exit(2);
             }
-            else if(pid) {
-                waitpid(pid, &r , 0);
-                sleep(10);
+            else if(pid > 0) {
+                /* keep track of children's pid */
+                pid_arr = (pid_t*)realloc(pid_arr, (j++) * sizeof(pid_t));
+                pid_arr[j-1] = pid;
             }
-            else {
+            else if(pid == 0){
+                /* zero J so that each child process can keep track of their own children only */
+                j=0;
+
                 if (signal(SIGINT,sigintChildHandler) < 0)
                 {
                     fprintf(stderr,"Unable to install SIGINT handler\n");
                     exit(1);
                 }
+
+                /* wait for signal from parent */
+                pause();
 
                 dircontent = getDirContent(filenames[i]);
 
@@ -238,11 +255,6 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                         exit(1);
                     }
                 }
-
-                // sleep(10);
-
-                free(directories);
-                free(files);
                 free(dircontent);
                 exit(0);
             }
@@ -253,6 +265,20 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         }
         i++;
     }
+
+    /* signal each child at a time */
+    if (pid_arr != NULL) {
+        pid_arr = (pid_t*)realloc(pid_arr, (j++) * sizeof(pid_t));
+        pid_arr[j-1] = -1;
+
+        /* sleep for 100ms to wait for children to pause */
+        usleep(100);
+        for (j = 0; pid_arr[j] > 0; j++) {
+            kill(pid_arr[j], SIGUSR1);
+            waitpid(pid_arr[j], NULL, 0);
+        }
+    }
+
     return 0;
 }
 
