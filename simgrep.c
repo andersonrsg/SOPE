@@ -17,6 +17,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <errno.h>
 
 #define MAXLEN  256
 #define BIT(n)  (0x01 << n)
@@ -27,8 +28,7 @@
 #define W_FLAG  BIT(4)
 #define R_FLAG  BIT(5)
 
-void sigint_handler(int signo)
-{
+void sigint_handler(int signo){
     printf("\nAre you sure you want to terminate the program? (Y/N)");
     char input;
 
@@ -47,15 +47,7 @@ void sigint_handler(int signo)
     }
 }
 
-void sigusr1_handler(int signo){
-    if (signal(signo, sigusr1_handler) == SIG_ERR) {
-        perror("could not set a handler for SIGUSR1");
-        exit(1);
-    }
-}
-
-void sigintChildHandler(int signo)
-{
+void sigintChildHandler(int signo){
     if (raise(SIGTSTP) != 0) {
         perror("Failed to pause all processes.");
         exit(0);
@@ -73,10 +65,8 @@ int grep(char *pattern, char *file, unsigned char flags);
 unsigned char flags = 0x00;
 
 /*
-    TODO:
-    signal handlers:
-        task finish
-    log file
+TODO:
+log file
 */
 
 // Main
@@ -97,12 +87,6 @@ int main(int argc, char *argv[]) {
     if (signal(SIGINT,sigint_handler) < 0)
     {
         fprintf(stderr,"Unable to install SIGINT handler\n");
-        exit(1);
-    }
-
-    /* install SIGUSR1 handler */
-    if(signal(SIGUSR1, sigusr1_handler) == SIG_ERR){
-        perror("could not set a handler for SIGUSR1");
         exit(1);
     }
 
@@ -183,26 +167,84 @@ int main(int argc, char *argv[]) {
 }
 
 int simgrep(char *pattern, char **filenames, unsigned char flags) {
-    int i=0, j=0, r, matches;
-    char **dircontent = NULL,
-         *buffer = NULL;
-    pid_t pid, *pid_arr = NULL;
+    int i=0, f=0, d=0, r, matches;
+    char **files = NULL,
+    **directories = NULL,
+    **dircontent = NULL,
+    *buffer = NULL;
+    pid_t pid;
 
     if(!strcmp(*filenames, "stdin")){
         return grep(pattern, "stdin", flags);
     }
 
     while(filenames[i] != NULL) {
-
         /* Check if filename is a file or a directory */
         r = is_file_or_dir(filenames[i]);
 
         if(r == 1) { /* filename is a file */
-            if ((matches = grep(pattern, filenames[i], flags)) < 0) {
-                perror("simgrep: grep");
-                exit(1);
-            }
+            files = (char**)realloc(files, (f+1) * sizeof(char*));
+            files[f] = (char*)malloc(strlen(filenames[i])+1);
+            strcpy(files[f], filenames[i]);
+            f++;
+        }
+        else if(r == 0){ /* filename is a directory */
+            directories = (char**)realloc(directories, (d+1) * sizeof(char*));
+            directories[d] = (char*)malloc(strlen(filenames[i])+1);
+            strcpy(directories[d], filenames[i]);
+            d++;
+        }
+        else{ /* filename is neither a regular file nor a directory */
+            fprintf(stderr, "File %s not found!\n", filenames[i]);
+            //return 1;
+        }
+        i++;
+    }
 
+    files = (char**)realloc(files, (f+1) * sizeof(char*));
+    files[f] = NULL;
+
+    directories = (char**)realloc(directories, (d+1) * sizeof(char*));
+    directories[d] = NULL;
+
+    for (i = 0; directories[i] != NULL; i++) {
+        if (flags & R_FLAG) {
+            if((pid = fork()) < 0){
+                perror("simgrep: fork");
+                exit(2);
+            }
+            else if(pid == 0){
+                if (signal(SIGINT,sigintChildHandler) < 0)
+                {
+                    fprintf(stderr,"Unable to install SIGINT handler\n");
+                    exit(1);
+                }
+
+                dircontent = getDirContent(directories[i]);
+
+                if((dircontent != NULL) && (dircontent[0] != NULL)){
+                    if(simgrep(pattern, dircontent, flags)) {
+                        perror("simgrep");
+                        exit(1);
+                    }
+                }
+                free(dircontent);
+                exit(0);
+            }
+        }
+        else{
+                fprintf(stderr, "simgrep: %s: Is a directory\n", directories[i]);
+        }
+    }
+
+
+    for(i=0; files[i] != NULL; i++){
+        if ((matches = grep(pattern, files[i], flags)) < 0) {
+            perror("simgrep: grep");
+            exit(1);
+        }
+
+        if (matches > 0) {
             if((flags & C_FLAG) && (flags & L_FLAG)) {
                 buffer = (char*)realloc(buffer, sizeof(char) * 3);
                 buffer[0] = ':';
@@ -217,65 +259,12 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 printf("%s:%s\n", filenames[i], buffer);
                 printf("%s\n", filenames[i]);
             }
-            else if ((flags & L_FLAG) && (matches > 0)) {
+            else if ((flags & L_FLAG)) {
                 printf("%s\n", filenames[i]);
             }
             else if ((flags & C_FLAG)) {
                 printf("%s:%d\n", filenames[i], matches);
             }
-        }
-        else if(r == 0){ /* filename is a directory */
-            if((pid = fork()) < 0){
-                perror("simgrep: fork");
-                exit(2);
-            }
-            else if(pid > 0) {
-                /* keep track of children's pid */
-                pid_arr = (pid_t*)realloc(pid_arr, (j++) * sizeof(pid_t));
-                pid_arr[j-1] = pid;
-            }
-            else if(pid == 0){
-                /* zero J so that each child process can keep track of their own children only */
-                j=0;
-
-                if (signal(SIGINT,sigintChildHandler) < 0)
-                {
-                    fprintf(stderr,"Unable to install SIGINT handler\n");
-                    exit(1);
-                }
-
-                /* wait for signal from parent */
-                pause();
-
-                dircontent = getDirContent(filenames[i]);
-
-                if((dircontent != NULL) && (dircontent[0] != NULL)){
-                    if(simgrep(pattern, dircontent, flags)) {
-                        perror("simgrep invocation on child returned an error");
-                        exit(1);
-                    }
-                }
-                free(dircontent);
-                exit(0);
-            }
-        }
-        else{ /* filename is neither a regular file nor a directory */
-            fprintf(stderr, "File %s not found!\n", filenames[i]);
-            //return 1;
-        }
-        i++;
-    }
-
-    /* signal each child at a time */
-    if (pid_arr != NULL) {
-        pid_arr = (pid_t*)realloc(pid_arr, (j++) * sizeof(pid_t));
-        pid_arr[j-1] = -1;
-
-        /* sleep for 100ms to wait for children to pause */
-        usleep(100);
-        for (j = 0; pid_arr[j] > 0; j++) {
-            kill(pid_arr[j], SIGUSR1);
-            waitpid(pid_arr[j], NULL, 0);
         }
     }
 
@@ -286,7 +275,7 @@ int is_file_or_dir(char *file){
     struct stat fileStat;
 
     if(stat(file, &fileStat) < 0)
-        return -1;
+    return -1;
 
     return S_ISREG(fileStat.st_mode);
 }
@@ -312,13 +301,13 @@ char **getDirContent(char *directory){
             continue;
         }
 
-        /* realloc memory to fit "/", "<filename>" and '\0' to the current filepath */
-        filepath = (char*)realloc(filepath, strlen(directory)+strlen(dp->d_name)+2);
+        /* realloc memory to fit <filename>" and '\0' to the current filepath */
+        filepath = (char*)realloc(filepath, strlen(directory)+strlen(dp->d_name)+ ((directory[strlen(directory)-1] == '/')? 1 : 2 ));
 
         /* append /<filename> to current filepath */
         filepath[0] = '\0';
         strcpy(filepath, directory);
-        strcat(filepath, "/");
+        if(directory[strlen(directory)-1] != '/') strcat(filepath, "/");
         strcat(filepath, dp->d_name);
 
         /* realloc memomy to add new filepath */
@@ -341,10 +330,10 @@ char **getDirContent(char *directory){
 int grep(char *pattern, char* file, unsigned char flags){
     FILE *ifp; /* Input File pointer */
     char *input = NULL, /* input */
-         *match = NULL, /* matched string */
-         *line = NULL, /* line string */
-         *cpy_input = NULL, /* input copy */
-         *cpy_pattern = NULL; /* pattern copy */
+        *match = NULL, /* matched string */
+        *line = NULL, /* line string */
+        *cpy_input = NULL, /* input copy */
+        *cpy_pattern = NULL; /* pattern copy */
     int l = 1, /*  line counter */
         n = 0, /* line string size */
         wflag = 0, /* wflag control */
