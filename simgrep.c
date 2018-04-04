@@ -56,7 +56,6 @@ void sigintChildHandler(int signo){
 
 // Assinaturas
 int main(int argc, char *argv[]);
-int getSomething();
 int simgrep(char *pattern, char **filenames, unsigned char flags);
 int is_file_or_dir(char *curr);
 char **getDirContent(char *directory);
