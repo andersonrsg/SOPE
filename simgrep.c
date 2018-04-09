@@ -73,16 +73,16 @@ int main(int argc, char *argv[]) {
     regex_t re_simgrep, re_options, re_pattern, re_files;
     int k=0;
     char *pattern = NULL,
-        **files = NULL;
+    **files = NULL;
 
-	fd = open("logfile.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+    fd = open("logfile.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
 
-	if (fd < 0) {
-	    printf("Failed to create log file.\n");
-	    exit(1);
-	}
+    if (fd < 0) {
+        perror("Logfile");
+        exit(1);
+    }
 
-	
+
     char currentTime[20];
 
     time (&rawtime);
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
 
     if (signal(SIGINT,sigint_handler) < 0)
     {
-        fprintf(stderr,"Unable to install SIGINT handler\n");
+        perror("sigint_handler");
         exit(1);
     }
 
@@ -177,8 +177,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
     int i=0, f=0, d=0, r, matches;
     char **files = NULL,
     **directories = NULL,
-    **dircontent = NULL,
-    *buffer = NULL;
+    **dircontent = NULL;
     pid_t pid;
 
     if(!strcmp(*filenames, "stdin")){
@@ -202,7 +201,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             d++;
         }
         else{ /* filename is neither a regular file nor a directory */
-            fprintf(stderr, "File %s not found!\n", filenames[i]);
+            fprintf(stderr, "simgrep: %s: %s\n", filenames[i], strerror(errno));
             //return 1;
         }
         i++;
@@ -223,7 +222,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             else if(pid == 0){
                 if (signal(SIGINT,sigintChildHandler) < 0)
                 {
-                    fprintf(stderr,"Unable to install SIGINT handler\n");
+                    perror("simgrep: sigintChildHandler");
                     exit(1);
                 }
 
@@ -240,7 +239,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
             }
         }
         else{
-                fprintf(stderr, "simgrep: %s: Is a directory\n", directories[i]);
+            fprintf(stderr, "simgrep: %s: Is a directory\n", directories[i]);
         }
     }
 
@@ -252,23 +251,10 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
         }
 
         if (matches > 0) {
-            if((flags & C_FLAG) && (flags & L_FLAG)) {
-                buffer = (char*)realloc(buffer, sizeof(char) * 3);
-                buffer[0] = ':';
-                if (matches > 0) {
-                    buffer[1] = '1';
-                } else {
-                    buffer[1] = '0';
-                }
-
-                buffer[2] = '\0';
-
+            if (flags & L_FLAG) {
                 printf("%s\n", files[i]);
             }
-            else if ((flags & L_FLAG)) {
-                printf("%s\n", files[i]);
-            }
-            else if ((flags & C_FLAG)) {
+            else if (flags & C_FLAG) {
                 printf("%s:%d\n", files[i], matches);
             }
         }
@@ -295,7 +281,7 @@ char **getDirContent(char *directory){
 
     /* open directory to read its content */
     if((dir = opendir(directory)) == NULL){
-        fprintf(stderr, "Cannot open %s\n", directory);
+        fprintf(stderr, "getDirContent: %s: %s\n", directory, strerror(errno));
         return NULL;
     }
 
@@ -336,21 +322,18 @@ char **getDirContent(char *directory){
 int grep(char *pattern, char* file, unsigned char flags){
     FILE *ifp; /* Input File pointer */
     char *input = NULL, /* input */
-        *match = NULL, /* matched string */
-        *line = NULL, /* line string */
-        *cpy_input = NULL, /* input copy */
-        *cpy_pattern = NULL; /* pattern copy */
+    *match = NULL, /* matched string */
+    *line = NULL, /* line string */
+    *cpy_input = NULL, /* input copy */
+    *cpy_pattern = NULL; /* pattern copy */
     int l = 1, /*  line counter */
-        n = 0, /* line string size */
-        wflag = 0, /* wflag control */
-        matches = 0; /* number of matches */
+    n = 0, /* line string size */
+    matches = 0; /* number of matches */
 
     /* open I/O file pointers */
     if (strcmp(file, "stdin")) {
-        if ((ifp = fopen(file, "r")) == NULL) {
-            printf("file %s was not found\n", file);
+        if ((ifp = fopen(file, "r")) == NULL)
             return -1;
-        }
     }
     else{
         ifp = stdin;
@@ -400,39 +383,30 @@ int grep(char *pattern, char* file, unsigned char flags){
                 line = "";
             }
 
-            /* if w flag is set, check if match is from a whole word */
-            if (flags & W_FLAG) {
-                char *q = match + strlen(cpy_pattern);
-                if ( !strcmp(match, cpy_pattern) || !isalnum (( unsigned char ) *(match - 1))) {
-                    if ( *q == '\0' || !isalnum (( unsigned char ) *q)) {
-                        wflag = 1;
+            if (!(flags & (C_FLAG | L_FLAG))) {
+                if (flags & W_FLAG) {
+                    char *q = match + strlen(cpy_pattern);
+                    if ( !strcmp(match, cpy_pattern) || !isalnum (( unsigned char ) *(match - 1))) {
+                        if ( *q == '\0' || !isalnum (( unsigned char ) *q)) {
+                            if (flags & R_FLAG)
+                                printf("%s:%s%s\n", file, line, input);
+                            else
+                                printf("%s%s\n", line, input);
+                        }
                     }
                 }
-            }
-
-            /* if w flag is set, only print if whole word was found (controlled by wflag variable) */
-            if (flags & W_FLAG) {
-                if (wflag) {
-                    if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
+                else if(flags & R_FLAG){
+                        printf("%s:%s%s\n", file, line, input);
+                }
+                else {
                         printf("%s%s\n", line, input);
-                    }
-                    wflag = 0;
-                }
-            }
-            else if(flags & R_FLAG){
-                if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                    printf("%s:%s%s\n", file, line, input);
-                }
-            }
-            else {
-                if (!(flags & C_FLAG) && !(flags & L_FLAG)) {
-                    printf("%s%s\n", line, input);
                 }
             }
 
             /* increment line counter */
             l++;
         }
+
     }
 
     /* close File pointers */
