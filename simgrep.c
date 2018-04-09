@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
 
     time (&rawtime);
     struct tm  *timeinfo = localtime (&rawtime);
-    strftime(currentTime, sizeof(currentTime)-1, "%d.%m.%y_%H:%M:%S", timeinfo);
+    strftime(currentTime, sizeof(currentTime)-1, "%d.%%m.%%y_%%H:%%M:%S", timeinfo);
 
     write(fd,"Simgrep started - ", 17);
     write(fd, currentTime, strlen(currentTime));
@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
         perror("simgrep: re_options");
         exit(1);
     }
-    else if(regcomp(&re_pattern, "\\w+", REG_EXTENDED)){
+    else if(regcomp(&re_pattern, "[a-zA-Z0-9]", REG_EXTENDED)){
         perror("simgrep: re_pattern");
         exit(1);
     }
