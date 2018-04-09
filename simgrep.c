@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
 
     time (&rawtime);
     struct tm  *timeinfo = localtime (&rawtime);
-    strftime(currentTime, sizeof(currentTime)-1, "%d.%%m.%%y_%%H:%%M:%S", timeinfo);
+    strftime(currentTime, sizeof(currentTime)-1, "%d.%m.%y_%H:%M:%S", timeinfo);
 
     write(fd,"Simgrep started - ", 17);
     write(fd, currentTime, strlen(currentTime));
