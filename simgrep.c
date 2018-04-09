@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <errno.h>
+#include <time.h>
 
 #define MAXLEN  256
 #define BIT(n)  (0x01 << n)
@@ -63,10 +64,8 @@ int grep(char *pattern, char *file, unsigned char flags);
 
 unsigned char flags = 0x00;
 
-/*
-TODO:
-log file
-*/
+int fd;
+
 
 // Main
 int main(int argc, char *argv[]) {
@@ -75,10 +74,28 @@ int main(int argc, char *argv[]) {
     char *pattern = NULL,
         **files = NULL;
 
+	fd = open("logfile.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+
+	if (fd < 0) {
+	    printf("Failed to create log file.\n");
+	    exit(1);
+	}
+
+	time_t rawtime;
+    char currentTime[20];
+
+    time (&rawtime);
+    struct tm  *timeinfo = localtime (&rawtime);
+    strftime(currentTime, sizeof(currentTime)-1, "%d.%m.%y_%H:%M:%S", timeinfo);
+
+    write(fd,"Simgrep started - ", 17);
+    write(fd, currentTime, strlen(currentTime));
+
     struct sigaction action;
     action.sa_handler = sigint_handler;
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
+
 
     if (signal(SIGINT,sigint_handler) < 0)
     {
