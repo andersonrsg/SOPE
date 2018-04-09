@@ -64,8 +64,9 @@ int grep(char *pattern, char *file, unsigned char flags);
 
 unsigned char flags = 0x00;
 
+// LOG
 int fd;
-
+time_t rawtime;
 
 // Main
 int main(int argc, char *argv[]) {
@@ -81,14 +82,14 @@ int main(int argc, char *argv[]) {
 	    exit(1);
 	}
 
-	time_t rawtime;
+	
     char currentTime[20];
 
     time (&rawtime);
     struct tm  *timeinfo = localtime (&rawtime);
-    strftime(currentTime, sizeof(currentTime)-1, "%d.%%m.%%y_%%H:%%M:%S", timeinfo);
+    strftime(currentTime, sizeof(currentTime)-1, "%d.%m.%y_%H:%M:%S\n", timeinfo);
 
-    write(fd,"Simgrep started - ", 17);
+    write(fd,"Simgrep started - ", 18);
     write(fd, currentTime, strlen(currentTime));
 
     struct sigaction action;
