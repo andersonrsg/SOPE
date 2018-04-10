@@ -67,6 +67,18 @@ unsigned char flags = 0x00;
 // LOG
 int fd;
 time_t rawtime;
+struct tm  *timeinfo;
+char currentTime[20];
+
+void getTime() {
+	time (&rawtime);
+    timeinfo = localtime (&rawtime);
+    strftime(currentTime, sizeof(currentTime)-1, "%d.%m.%y_%H:%M:%S", timeinfo);
+    write(fd, currentTime, strlen(currentTime));
+    write(fd, " - ", 3);
+    // pid = getpid();
+    // write(fd, pid, sizeof(pid));
+}
 
 // Main
 int main(int argc, char *argv[]) {
@@ -82,15 +94,16 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-
-    char currentTime[20];
-
-    time (&rawtime);
-    struct tm  *timeinfo = localtime (&rawtime);
-    strftime(currentTime, sizeof(currentTime)-1, "%d.%m.%y_%H:%M:%S\n", timeinfo);
-
-    write(fd,"Simgrep started - ", 18);
+    getTime();
+    write(fd,"\nSimgrep started - ", 19);
     write(fd, currentTime, strlen(currentTime));
+    write(fd, "\n", 1);
+	write(fd, "COMANDO ", 8);
+	for(int i = 0; i < argc ; i++) {
+		write(fd, argv[i], strlen(argv[i]));
+		write(fd, " ", 1);
+	}
+	write(fd, "\n", 1);
 
     struct sigaction action;
     action.sa_handler = sigint_handler;
@@ -215,7 +228,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
 
     for (i = 0; directories[i] != NULL; i++) {
         if (flags & R_FLAG) {
-            if((pid = fork()) < 0){
+            if((pid = fork()) < 0) {
                 perror("simgrep: fork");
                 exit(2);
             }
@@ -280,10 +293,16 @@ char **getDirContent(char *directory){
     **filenames = NULL;
 
     /* open directory to read its content */
-    if((dir = opendir(directory)) == NULL){
+    if((dir = opendir(directory)) == NULL) {
+    	getTime();
+    	write(fd, "FALHA AO ABRIR DIRETORIO ", 24);
         fprintf(stderr, "getDirContent: %s: %s\n", directory, strerror(errno));
         return NULL;
     }
+    getTime();
+	write(fd, " - ABERTO DIRETORIO ", 19);
+	write(fd, directory, sizeof(directory));
+	write(fd, "\n", 1);
 
     /* read directory content */
     while((dp = readdir(dir)) != NULL){
@@ -316,6 +335,10 @@ char **getDirContent(char *directory){
     filenames[i] = NULL;
 
     closedir(dir);
+    getTime();
+    write(fd, "FECHADO DIRETORIO ", 18);
+	write(fd, dir, sizeof(dir));
+	write(fd, "\n", 1);
     return filenames;
 }
 
@@ -332,10 +355,20 @@ int grep(char *pattern, char* file, unsigned char flags){
 
     /* open I/O file pointers */
     if (strcmp(file, "stdin")) {
-        if ((ifp = fopen(file, "r")) == NULL)
+        if ((ifp = fopen(file, "r")) == NULL) {
+        	getTime();
+        	write(fd, "FALHA AO ABRIR ARQUIVO ", 23);
+			write(fd, file, sizeof(file));
+			write(fd, "\n", 1);
             return -1;
+        } else {
+        	getTime();
+        	write(fd, "ABERTO ARQUIVO ", 16);
+			write(fd, file, sizeof(file));
+			write(fd, "\n", 1);
+        }
     }
-    else{
+    else {
         ifp = stdin;
     }
 
@@ -411,6 +444,11 @@ int grep(char *pattern, char* file, unsigned char flags){
 
     /* close File pointers */
     fclose(ifp);
+    getTime();
+    write(fd, "FECHADO ARQUIVO ", 17);
+	write(fd, file, sizeof(file));
+	write(fd, "\n", 1);
+
 
     /* return number of matched strings */
     return matches;
