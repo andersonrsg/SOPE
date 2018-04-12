@@ -29,31 +29,6 @@
 #define W_FLAG  BIT(4)
 #define R_FLAG  BIT(5)
 
-void sigint_handler(int signo){
-    printf("\nAre you sure you want to terminate the program? (Y/N)");
-    char input;
-
-    do {
-        input = getchar();
-        input = tolower(input);
-    } while(input != 121 && input != 110);
-
-    if (input == 121) {
-        // Sends a signal to the group of the calling process.
-        // All child process from a parent will have the same group id.
-        killpg(getpgrp() ,SIGKILL);
-        exit(0);
-    } else {
-        killpg(getpgrp() ,SIGCONT);
-    }
-}
-
-void sigintChildHandler(int signo){
-    if (raise(SIGTSTP) != 0) {
-        perror("Failed to pause all processes.");
-        exit(0);
-    }
-}
 
 // Assinaturas
 int main(int argc, char *argv[]);
@@ -61,49 +36,33 @@ int simgrep(char *pattern, char **filenames, unsigned char flags);
 int is_file_or_dir(char *curr);
 char **getDirContent(char *directory);
 int grep(char *pattern, char *file, unsigned char flags);
+void sigint_handler(int signo);
+void sigintChildHandler(int signo);
+int get_number_size(size_t number);
+void write_to_logfile(int pid, char* message, char* arg);
 
 unsigned char flags = 0x00;
-
-// LOG
-int fd;
-time_t rawtime;
-struct tm  *timeinfo;
-char currentTime[20];
-
-void getTime() {
-	time (&rawtime);
-    timeinfo = localtime (&rawtime);
-    strftime(currentTime, sizeof(currentTime)-1, "%d.%m.%y_%H:%M:%S", timeinfo);
-    write(fd, currentTime, strlen(currentTime));
-    write(fd, " - ", 3);
-    // pid = getpid();
-    // write(fd, pid, sizeof(pid));
-}
+clock_t begin;
 
 // Main
 int main(int argc, char *argv[]) {
     regex_t re_simgrep, re_options, re_pattern, re_files;
     int k=0;
     char *pattern = NULL,
-    **files = NULL;
+    **files = NULL,
+    *args = NULL;
 
-    fd = open("logfile.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+    begin = clock();
 
-    if (fd < 0) {
-        perror("Logfile");
-        exit(1);
+    args = (char*)malloc(strlen(argv[0]) + 1);
+    strcpy(args, argv[0]);
+    for (int i = 1; i < argc; i++) {
+        args = (char*)realloc(args, strlen(args) + strlen(argv[i]) + 1);
+        strcat(args, " ");
+        strcat(args, argv[i]);
     }
 
-    getTime();
-    write(fd,"\nSimgrep started - ", 19);
-    write(fd, currentTime, strlen(currentTime));
-    write(fd, "\n", 1);
-	write(fd, "COMANDO ", 8);
-	for(int i = 0; i < argc ; i++) {
-		write(fd, argv[i], strlen(argv[i]));
-		write(fd, " ", 1);
-	}
-	write(fd, "\n", 1);
+    write_to_logfile(getpid(), "COMANDO ", args);
 
     struct sigaction action;
     action.sa_handler = sigint_handler;
@@ -116,7 +75,6 @@ int main(int argc, char *argv[]) {
         perror("sigint_handler");
         exit(1);
     }
-
     if (regcomp(&re_simgrep, "\\.\\/simgrep", REG_EXTENDED)){
         perror("simgrep: re_simgrep");
         exit(1);
@@ -250,6 +208,9 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 free(dircontent);
                 exit(0);
             }
+            else{
+                sleep(5);
+            }
         }
         else{
             fprintf(stderr, "simgrep: %s: Is a directory\n", directories[i]);
@@ -294,15 +255,13 @@ char **getDirContent(char *directory){
 
     /* open directory to read its content */
     if((dir = opendir(directory)) == NULL) {
-    	getTime();
-    	write(fd, "FALHA AO ABRIR DIRETORIO ", 24);
+        // getTime();
+        // write(fd, "FALHA AO ABRIR DIRETORIO ", 24);
+        write_to_logfile(getpid(), "FALHA AO ABRIR DIRETORIO ", directory);
         fprintf(stderr, "getDirContent: %s: %s\n", directory, strerror(errno));
         return NULL;
     }
-    getTime();
-	write(fd, " - ABERTO DIRETORIO ", 19);
-	write(fd, directory, sizeof(directory));
-	write(fd, "\n", 1);
+    write_to_logfile(getpid(), "ABERTO DIRETORIO ", directory);
 
     /* read directory content */
     while((dp = readdir(dir)) != NULL){
@@ -335,10 +294,7 @@ char **getDirContent(char *directory){
     filenames[i] = NULL;
 
     closedir(dir);
-    getTime();
-    write(fd, "FECHADO DIRETORIO ", 18);
-	write(fd, dir, sizeof(dir));
-	write(fd, "\n", 1);
+    write_to_logfile(getpid(), "FECHADO DIRETORIO ", directory);
     return filenames;
 }
 
@@ -356,16 +312,10 @@ int grep(char *pattern, char* file, unsigned char flags){
     /* open I/O file pointers */
     if (strcmp(file, "stdin")) {
         if ((ifp = fopen(file, "r")) == NULL) {
-        	getTime();
-        	write(fd, "FALHA AO ABRIR ARQUIVO ", 23);
-			write(fd, file, sizeof(file));
-			write(fd, "\n", 1);
+            write_to_logfile(getpid(), "FALHA AO ABRIR ARQUIVO ", file);
             return -1;
         } else {
-        	getTime();
-        	write(fd, "ABERTO ARQUIVO ", 16);
-			write(fd, file, sizeof(file));
-			write(fd, "\n", 1);
+            write_to_logfile(getpid(), "ABERTO ARQUIVO ", file);
         }
     }
     else {
@@ -422,17 +372,17 @@ int grep(char *pattern, char* file, unsigned char flags){
                     if ( !strcmp(match, cpy_pattern) || !isalnum (( unsigned char ) *(match - 1))) {
                         if ( *q == '\0' || !isalnum (( unsigned char ) *q)) {
                             if (flags & R_FLAG)
-                                printf("%s:%s%s\n", file, line, input);
+                            printf("%s:%s%s\n", file, line, input);
                             else
-                                printf("%s%s\n", line, input);
+                            printf("%s%s\n", line, input);
                         }
                     }
                 }
                 else if(flags & R_FLAG){
-                        printf("%s:%s%s\n", file, line, input);
+                    printf("%s:%s%s\n", file, line, input);
                 }
                 else {
-                        printf("%s%s\n", line, input);
+                    printf("%s%s\n", line, input);
                 }
             }
 
@@ -444,12 +394,95 @@ int grep(char *pattern, char* file, unsigned char flags){
 
     /* close File pointers */
     fclose(ifp);
-    getTime();
-    write(fd, "FECHADO ARQUIVO ", 17);
-	write(fd, file, sizeof(file));
-	write(fd, "\n", 1);
+    write_to_logfile(getpid(), "FECHADO ARQUIVO ", file);
 
 
     /* return number of matched strings */
     return matches;
+}
+
+void sigint_handler(int signo){
+    printf("\nAre you sure you want to terminate the program? (Y/N)");
+    char input, *message;
+
+    do {
+        input = getchar();
+        input = tolower(input);
+    } while(input != 121 && input != 110);
+
+    if (input == 121) {
+        // Sends a signal to the group of the calling process.
+        // All child process from a parent will have the same group id.
+        message = (char*)malloc(strlen("SIGKILL to ") + get_number_size(getpgrp()) + 1);
+        sprintf(message, "SIGKILL to %d", getpgrp());
+        write_to_logfile(getpid(), "SIGNAL ", message);
+        killpg(getpgrp() ,SIGKILL);
+        exit(0);
+    } else {
+        message = (char*)malloc(strlen("SIGCONT to ") + get_number_size(getpgrp()) + 1);
+        sprintf(message, "SIGCONT to %d", getpgrp());
+        write_to_logfile(getpid(), "SIGNAL ", message);
+        killpg(getpgrp() ,SIGCONT);
+    }
+}
+
+void sigintChildHandler(int signo){
+    if (raise(SIGTSTP) != 0) {
+        perror("Failed to pause all processes.");
+        exit(0);
+    }
+}
+
+int get_number_size(size_t number){
+    int i = 0;
+    do {
+        number /= 10;
+        i++;
+    } while(number > 0);
+    return i;
+}
+
+void write_to_logfile(int pid, char* message, char* arg){
+    int fd, msg_size;
+    time_t rawtime;
+    struct tm *timeinfo;
+    char *to_print = NULL,
+    currentTime[20],
+    str_pid[ get_number_size(getpid()) ];
+    clock_t end;
+    double timespent;
+
+    /*
+        TODO:
+        change time to miliseconds since beginning of execution (?)
+    */
+
+    fd = open("logfile.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+
+    // end = clock();
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    strftime(currentTime, 20, "%x_%X", timeinfo);
+
+    // timespent = (double)(end - begin)*1000/CLOCKS_PER_SEC;
+
+    sprintf(str_pid, "%d", pid);
+
+    msg_size = strlen(currentTime) + strlen(" - ") + strlen("PID ") + strlen(str_pid) + strlen(" - ") + strlen(message) + strlen(arg) + 2;
+    // msg_size = get_number_size(timespent) + strlen(" - ") + strlen("PID ") + strlen(str_pid) + strlen(" - ") + strlen(message) + strlen(arg) + 2;
+
+    to_print = (char*)malloc(msg_size);
+    // sprintf(to_print, "%f", timespent);
+    strcpy(to_print, currentTime);
+    strcat(to_print, " - ");
+    strcat(to_print, "PID ");
+    strcat(to_print, str_pid);
+    strcat(to_print, " - ");
+    strcat(to_print, message);
+    strcat(to_print, arg);
+    strcat(to_print, "\n");
+
+    write(fd, to_print, strlen(to_print));
+
+    close(fd);
 }
