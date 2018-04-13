@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
     action.sa_flags = 0;
 
     /* install signal SIGINT handler */
-    if (signal(SIGINT,sigint_handler) < 0)
+    if (signal(SIGINT,sigint_handler) == NULL)
     {
         perror("sigint_handler");
         exit(1);
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
             continue;
         }
         else if(!regexec(&re_options, argv[i], 0, NULL, 0)){
-            for (int j = 1; j < strlen(argv[i]); j++) {
+            for (size_t j = 1; j < strlen(argv[i]); j++) {
                 if(argv[i][j] == 'i') flags |= I_FLAG;
                 else if(argv[i][j] == 'l') flags |= L_FLAG;
                 else if(argv[i][j] == 'n') flags |= N_FLAG;
@@ -199,7 +199,7 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 exit(2);
             }
             else if(pid == 0){
-                if (signal(SIGINT,sigintChildHandler) < 0)
+                if (signal(SIGINT,sigintChildHandler) == NULL)
                 {
                     perror("simgrep: sigintChildHandler");
                     exit(1);
@@ -421,7 +421,7 @@ void sigint_handler(int signo){
         message = (char*)malloc(strlen("SIGKILL to ") + get_number_size(getpgrp()) + 1);
         sprintf(message, "SIGKILL to %d", getpgrp());
         write_to_logfile(getpid(), "SIGNAL ", message);
-        killpg(getpgrp() ,SIGKILL);
+        killpg(getpgrp(), SIGKILL);
         exit(0);
     } else {
         message = (char*)malloc(strlen("SIGCONT to ") + get_number_size(getpgrp()) + 1);

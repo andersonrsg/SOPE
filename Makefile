@@ -1,5 +1,5 @@
 CC 		= gcc
-CFLAGS 	= -Wall -g
+CFLAGS 	= -Wall -Wextra -Werror
 RM 		= rm -f
 
 default: all
