@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,7 +43,8 @@ int get_number_size(size_t number);
 void write_to_logfile(int pid, char* message, char* arg);
 
 unsigned char flags = 0x00;
-clock_t begin;
+struct timeval begin, end;
+pid_t father;
 
 // Main
 int main(int argc, char *argv[]) {
@@ -51,9 +53,12 @@ int main(int argc, char *argv[]) {
     char *pattern = NULL,
     **files = NULL,
     *args = NULL;
+    struct sigaction action;
 
-    begin = clock();
+    /* get the time of the begining of execution */
+    gettimeofday(&begin, NULL);
 
+    /* concatenate the args to save in the logfile */
     args = (char*)malloc(strlen(argv[0]) + 1);
     strcpy(args, argv[0]);
     for (int i = 1; i < argc; i++) {
@@ -64,17 +69,18 @@ int main(int argc, char *argv[]) {
 
     write_to_logfile(getpid(), "COMANDO ", args);
 
-    struct sigaction action;
     action.sa_handler = sigint_handler;
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
 
-
+    /* install signal SIGINT handler */
     if (signal(SIGINT,sigint_handler) < 0)
     {
         perror("sigint_handler");
         exit(1);
     }
+
+    /* Compile regex */
     if (regcomp(&re_simgrep, "\\.\\/simgrep", REG_EXTENDED)){
         perror("simgrep: re_simgrep");
         exit(1);
@@ -92,7 +98,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-
+    /* set pattern and files, and activate flags */
     for (int i = 0; i < argc; i++) {
         if (!regexec(&re_simgrep, argv[i], 0, NULL, 0)) {
             continue;
@@ -126,10 +132,12 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    /* if flag R is activated & no file was specified, consider file to be the current directory */
     if((flags & R_FLAG) && (files == NULL)){
         files = (char**)realloc(files, sizeof(char*));
         files[k++] = ".";
     }
+    /* if flag R is not activated & no file was specified, consider file to be the standard input */
     else if(!(flags & R_FLAG) && (files == NULL)){
         files = (char**)realloc(files, sizeof(char*));
         files[k++] = "stdin";
@@ -207,9 +215,6 @@ int simgrep(char *pattern, char **filenames, unsigned char flags) {
                 }
                 free(dircontent);
                 exit(0);
-            }
-            else{
-                sleep(5);
             }
         }
         else{
@@ -402,10 +407,10 @@ int grep(char *pattern, char* file, unsigned char flags){
 }
 
 void sigint_handler(int signo){
-    printf("\nAre you sure you want to terminate the program? (Y/N)");
     char input, *message;
 
     do {
+        printf("\nAre you sure you want to terminate the program? (Y/N)");
         input = getchar();
         input = tolower(input);
     } while(input != 121 && input != 110);
@@ -422,7 +427,7 @@ void sigint_handler(int signo){
         message = (char*)malloc(strlen("SIGCONT to ") + get_number_size(getpgrp()) + 1);
         sprintf(message, "SIGCONT to %d", getpgrp());
         write_to_logfile(getpid(), "SIGNAL ", message);
-        killpg(getpgrp() ,SIGCONT);
+        killpg(getpgrp(), SIGCONT);
     }
 }
 
@@ -444,36 +449,27 @@ int get_number_size(size_t number){
 
 void write_to_logfile(int pid, char* message, char* arg){
     int fd, msg_size;
-    time_t rawtime;
-    struct tm *timeinfo;
     char *to_print = NULL,
-    currentTime[20],
-    str_pid[ get_number_size(getpid()) ];
-    clock_t end;
+    str_pid[8];
     double timespent;
 
-    /*
-        TODO:
-        change time to miliseconds since beginning of execution (?)
-    */
+    if((fd = open("logfile.txt", O_WRONLY | O_APPEND | O_CREAT, 0644)) < 0){
+        perror("Logfile");
+        exit(1);
+    }
 
-    fd = open("logfile.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+    gettimeofday(&end, NULL);
 
-    // end = clock();
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    strftime(currentTime, 20, "%x_%X", timeinfo);
-
-    // timespent = (double)(end - begin)*1000/CLOCKS_PER_SEC;
+    timespent = (double)(end.tv_usec - begin.tv_usec)/1000;
 
     sprintf(str_pid, "%d", pid);
 
-    msg_size = strlen(currentTime) + strlen(" - ") + strlen("PID ") + strlen(str_pid) + strlen(" - ") + strlen(message) + strlen(arg) + 2;
-    // msg_size = get_number_size(timespent) + strlen(" - ") + strlen("PID ") + strlen(str_pid) + strlen(" - ") + strlen(message) + strlen(arg) + 2;
+    /* (time + . + two decimals + " ms") + (" - ") + ("PID " + 8-long fixed space for pid) + (" - ") + (size of message) + (size of arg) + \n + \0 */
+    msg_size = get_number_size(timespent) + 3 + strlen(" ms") + strlen(" - ") + strlen("PID ") + sizeof(str_pid) + strlen(" - ") + strlen(message) + strlen(arg) + 2;
 
     to_print = (char*)malloc(msg_size);
-    // sprintf(to_print, "%f", timespent);
-    strcpy(to_print, currentTime);
+    sprintf(to_print, "%.2f", timespent);
+    strcat(to_print, " ms");
     strcat(to_print, " - ");
     strcat(to_print, "PID ");
     strcat(to_print, str_pid);
