@@ -1,0 +1,89 @@
+0.13 ms - PID 6480 - COMANDO ./simgrep
+0.10 ms - PID 6482 - COMANDO ./simgrep lorem DirTeste/
+256.61 ms - PID 6482 - SIGNAL SIGCONT to 6482
+0.11 ms - PID 6483 - COMANDO ./simgrep lorem -r DirTeste/
+-229.50 ms - PID 6483 - SIGNAL SIGCONT to 6483
+-228.11 ms - PID 6484 - ABERTO DIRETORIO DirTeste/
+-227.80 ms - PID 6484 - FECHADO DIRETORIO DirTeste/
+0.11 ms - PID 6485 - COMANDO ./simgrep lorem -r DirTeste/
+-225.91 ms - PID 6484 - ABERTO ARQUIVO DirTeste/sample2.txt
+-225.71 ms - PID 6486 - ABERTO DIRETORIO DirTeste/SubDir
+-225.57 ms - PID 6486 - FECHADO DIRETORIO DirTeste/SubDir
+-225.44 ms - PID 6484 - FECHADO ARQUIVO DirTeste/sample2.txt
+-225.35 ms - PID 6484 - ABERTO ARQUIVO DirTeste/sample3.txt
+-224.97 ms - PID 6484 - FECHADO ARQUIVO DirTeste/sample3.txt
+6.58 ms - PID 6487 - ABERTO DIRETORIO DirTeste/
+7.01 ms - PID 6487 - FECHADO DIRETORIO DirTeste/
+-224.47 ms - PID 6486 - ABERTO ARQUIVO DirTeste/SubDir/sample4.txt
+-223.81 ms - PID 6486 - FECHADO ARQUIVO DirTeste/SubDir/sample4.txt
+26.75 ms - PID 6487 - ABERTO ARQUIVO DirTeste/sample2.txt
+28.79 ms - PID 6487 - FECHADO ARQUIVO DirTeste/sample2.txt
+28.96 ms - PID 6487 - ABERTO ARQUIVO DirTeste/sample3.txt
+29.01 ms - PID 6494 - ABERTO DIRETORIO DirTeste/SubDir
+29.21 ms - PID 6494 - FECHADO DIRETORIO DirTeste/SubDir
+36.43 ms - PID 6487 - FECHADO ARQUIVO DirTeste/sample3.txt
+33.18 ms - PID 6494 - ABERTO ARQUIVO DirTeste/SubDir/sample4.txt
+33.97 ms - PID 6494 - FECHADO ARQUIVO DirTeste/SubDir/sample4.txt
+0.16 ms - PID 6779 - COMANDO ./simgrep lorem -r DirTeste/
+209.62 ms - PID 6779 - SIGNAL SIGKILL to 6779
+0.20 ms - PID 6781 - COMANDO ./simgrep lorem -r DirTeste/
+4.64 ms - PID 6782 - ABERTO DIRETORIO DirTeste/
+4.93 ms - PID 6782 - FECHADO DIRETORIO DirTeste/
+0.12 ms - PID 6786 - COMANDO ./simgrep lorem -r DirTeste/
+6.32 ms - PID 6782 - ABERTO ARQUIVO DirTeste/sample2.txt
+6.85 ms - PID 6787 - ABERTO DIRETORIO DirTeste/SubDir
+7.11 ms - PID 6787 - FECHADO DIRETORIO DirTeste/SubDir
+7.28 ms - PID 6782 - FECHADO ARQUIVO DirTeste/sample2.txt
+7.41 ms - PID 6782 - ABERTO ARQUIVO DirTeste/sample3.txt
+7.82 ms - PID 6782 - FECHADO ARQUIVO DirTeste/sample3.txt
+-19.89 ms - PID 6786 - SIGNAL SIGCONT to 6786
+-18.30 ms - PID 6788 - ABERTO DIRETORIO DirTeste/
+-17.90 ms - PID 6788 - FECHADO DIRETORIO DirTeste/
+0.18 ms - PID 6789 - COMANDO ./simgrep lorem -r DirTeste/
+342.39 ms - PID 6789 - SIGNAL SIGCONT to 6789
+343.73 ms - PID 6790 - ABERTO DIRETORIO DirTeste/
+344.18 ms - PID 6790 - FECHADO DIRETORIO DirTeste/
+8.36 ms - PID 6787 - ABERTO ARQUIVO DirTeste/SubDir/sample4.txt
+9.31 ms - PID 6787 - FECHADO ARQUIVO DirTeste/SubDir/sample4.txt
+0.07 ms - PID 6791 - COMANDO ./simgrep lorem -r DirTeste/
+-16.75 ms - PID 6788 - ABERTO ARQUIVO DirTeste/sample2.txt
+-16.56 ms - PID 6792 - ABERTO DIRETORIO DirTeste/SubDir
+-16.42 ms - PID 6788 - FECHADO ARQUIVO DirTeste/sample2.txt
+-16.30 ms - PID 6792 - FECHADO DIRETORIO DirTeste/SubDir
+-16.24 ms - PID 6788 - ABERTO ARQUIVO DirTeste/sample3.txt
+-16.10 ms - PID 6788 - FECHADO ARQUIVO DirTeste/sample3.txt
+180.72 ms - PID 6791 - SIGNAL SIGCONT to 6791
+182.44 ms - PID 6793 - ABERTO DIRETORIO DirTeste/
+183.09 ms - PID 6793 - FECHADO DIRETORIO DirTeste/
+346.44 ms - PID 6790 - ABERTO ARQUIVO DirTeste/sample2.txt
+346.69 ms - PID 6795 - ABERTO DIRETORIO DirTeste/SubDir
+346.83 ms - PID 6790 - FECHADO ARQUIVO DirTeste/sample2.txt
+347.31 ms - PID 6790 - ABERTO ARQUIVO DirTeste/sample3.txt
+347.49 ms - PID 6795 - FECHADO DIRETORIO DirTeste/SubDir
+347.64 ms - PID 6790 - FECHADO ARQUIVO DirTeste/sample3.txt
+-15.20 ms - PID 6792 - ABERTO ARQUIVO DirTeste/SubDir/sample4.txt
+-14.47 ms - PID 6792 - FECHADO ARQUIVO DirTeste/SubDir/sample4.txt
+185.00 ms - PID 6793 - ABERTO ARQUIVO DirTeste/sample2.txt
+185.28 ms - PID 6796 - ABERTO DIRETORIO DirTeste/SubDir
+185.30 ms - PID 6793 - FECHADO ARQUIVO DirTeste/sample2.txt
+185.36 ms - PID 6796 - FECHADO DIRETORIO DirTeste/SubDir
+185.42 ms - PID 6793 - ABERTO ARQUIVO DirTeste/sample3.txt
+185.57 ms - PID 6793 - FECHADO ARQUIVO DirTeste/sample3.txt
+0.09 ms - PID 6797 - COMANDO ./simgrep lorem -r DirTeste/
+349.27 ms - PID 6795 - ABERTO ARQUIVO DirTeste/SubDir/sample4.txt
+349.83 ms - PID 6795 - FECHADO ARQUIVO DirTeste/SubDir/sample4.txt
+205.72 ms - PID 6797 - SIGNAL SIGKILL to 6797
+0.07 ms - PID 6798 - COMANDO ./simgrep lorem -r DirTeste/
+186.61 ms - PID 6796 - ABERTO ARQUIVO DirTeste/SubDir/sample4.txt
+186.81 ms - PID 6796 - FECHADO ARQUIVO DirTeste/SubDir/sample4.txt
+-163.48 ms - PID 6798 - SIGNAL SIGCONT to 6798
+-161.95 ms - PID 6799 - ABERTO DIRETORIO DirTeste/
+-161.58 ms - PID 6799 - FECHADO DIRETORIO DirTeste/
+-159.37 ms - PID 6799 - ABERTO ARQUIVO DirTeste/sample2.txt
+-159.03 ms - PID 6801 - ABERTO DIRETORIO DirTeste/SubDir
+-158.32 ms - PID 6801 - FECHADO DIRETORIO DirTeste/SubDir
+-158.16 ms - PID 6799 - FECHADO ARQUIVO DirTeste/sample2.txt
+-157.97 ms - PID 6799 - ABERTO ARQUIVO DirTeste/sample3.txt
+-157.60 ms - PID 6799 - FECHADO ARQUIVO DirTeste/sample3.txt
+-156.59 ms - PID 6801 - ABERTO ARQUIVO DirTeste/SubDir/sample4.txt
+-154.64 ms - PID 6801 - FECHADO ARQUIVO DirTeste/SubDir/sample4.txt
