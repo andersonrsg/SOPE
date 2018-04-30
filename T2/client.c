@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 void postRequest(char *argv[]);
+void getResponse();
 
 int main(int argc, char *argv[]) {
     printf("** Running process %d (PGID %d) **\n", getpid(), getpgrp());
@@ -13,7 +14,7 @@ int main(int argc, char *argv[]) {
     int   fdAnswers;
     pid_t pid = getpid();
     
-    int messagelen, i;
+    int messagelen;
     char message[200];
     char str[200];
     
@@ -50,15 +51,15 @@ int main(int argc, char *argv[]) {
 
 
 void getResponse() {
-	char  fifoName[10];
-    sprintf(fifoName, "ans%d", getpid());
+	// char  fifoName[10];
+ //    sprintf(fifoName, "ans%d", getpid());
     
     
-    mkfifo(fifoName, 0660);
-    fdAnswers = open(fifoName, O_RDONLY);
+ //    mkfifo(fifoName, 0660);
+ //    fdAnswers = open(fifoName, O_RDONLY);
     
-    while(readline(fdAnswers,str)) printf("%s", str);
-    close(fdAnswers);
+ //    while(readline(fdAnswers,str)) printf("%s", str);
+ //    close(fdAnswers);
 }
 
 
@@ -66,6 +67,7 @@ void getResponse() {
 void postRequest(char *argv[]) {
     int fdRequest;
     char message[200];
+    char messageArthur[200];
     int messagelen;
     
     do {
@@ -73,20 +75,12 @@ void postRequest(char *argv[]) {
         if (fdRequest == -1) sleep(1);
     } while (fdRequest == -1);
     
-    message[0] = '\0';
-    
-    
-    sprintf(message, "%d\n", getpid());
+
+    sprintf(message, "%d ", getpid());
+    strcat(message, argv[1]);
+    strcat(message, " ");
+    strcat(message, argv[2]);
+
     messagelen = strlen(message) + 1;
-    write(fdRequest, message, messagelen);
-    message[0] = '\0';
-    
-    sprintf(message, "%s\n", argv[1]);
-    messagelen = strlen(message) + 1;
-    write(fdRequest, message, messagelen);
-    message[0] = '\0';
-    
-    sprintf(message, "%s", argv[2]);
-    messagelen = strlen(message)+1;
     write(fdRequest, message, messagelen);    
 }
