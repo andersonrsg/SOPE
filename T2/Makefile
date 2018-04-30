@@ -4,10 +4,13 @@ RM 		= rm -f
 
 default: all
 
-all: Simgrep
+all: Server Client
 
-Simgrep: simgrep.c
-	@$(CC) $(CFLAGS) -o simgrep simgrep.c
+Server: server.c
+	@$(CC) $(CFLAGS) -o server server.c
+
+Client: client.c
+	@$(CC) $(CFLAGS) -o client client.c
 
 clean:
-	@$(RM) simgrep
+	@$(RM) server client
