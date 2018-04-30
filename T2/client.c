@@ -44,9 +44,11 @@ int main(int argc, char *argv[]) {
         messagelen = strlen(message)+1;
         write(fd, message, messagelen);
 
-		// sprintf(message,"Hello no. %d from process %d\n", i, getpid());
-  //       messagelen=strlen(message)+1;
-  //       write(fd,message,messagelen);
+        message[0] = '\0';
+
+		sprintf(message,"%d\n", argv[1]);
+        messagelen = strlen(message)+1;
+        write(fd, message, messagelen);
 
   //       sprintf(message,"Hello no. %d from process %d\n", i, getpid());
   //       messagelen=strlen(message)+1;
