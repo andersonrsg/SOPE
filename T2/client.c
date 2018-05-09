@@ -15,7 +15,8 @@ int readline(int fd, char *str);
 int main(int argc, char *argv[]) {
     printf("** Running process %d (PGID %d) **\n", getpid(), getpgrp());
     
-    pid_t pid = getpid();
+    pid_t pids = getpid();
+    pid_t pid;
 	int timeout = 0;
 
     // int messagelen;
@@ -35,10 +36,15 @@ int main(int argc, char *argv[]) {
         printf("Fatal error.");
         exit(0);
     } else if (pid == 0) {
-        sleep(2);
-        postRequest(argv, pid);
- 	} else {
+//        sleep(2);
+//        postRequest(argv, pid);
+        
         getResponse(timeout);
+ 	} else {
+//        getResponse(timeout);
+        
+        sleep(2);
+        postRequest(argv, pids);
  	}    
     
     sleep(1);
