@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 void writeLog(pid_t pid, int reservedSeats, char *seats, char* id, char* error) {
     
     int fd;
-    char pidMessage[5];
+    char pidMessage[6];
     char message[200];
     int seatInt;
     char *currSeat;
