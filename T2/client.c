@@ -4,34 +4,41 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
+#include <stdlib.h>
+
 
 void postRequest(char *argv[], pid_t pid);
-void getResponse();
+void getResponse(int timeout);
 int readline(int fd, char *str);
 
 int main(int argc, char *argv[]) {
     printf("** Running process %d (PGID %d) **\n", getpid(), getpgrp());
     
     pid_t pid = getpid();
-    
+	int timeout = 0;
+
     // int messagelen;
     // char message[200];
     // char str[200];
     
     
     if (argc != 4) {
-
         printf("It should be passed to the client three arguments.\n");
-        
     } else {
         printf("ARGS: %s | %s | %s\n", argv[1], argv[2], argv[3]);
     }
+    timeout = atoi(argv[1]);
     
- 	if (fork() == 0){
-		getResponse();
+    pid = fork();
+    if (pid == -1) {
+        printf("Fatal error.");
+        exit(0);
+    } else if (pid == 0) {
+        sleep(2);
+        postRequest(argv, pid);
  	} else {
- 		sleep(2);
- 		postRequest(argv, pid);
+        getResponse(timeout);
  	}    
     
     sleep(1);
@@ -49,23 +56,27 @@ int main(int argc, char *argv[]) {
     
     
     sleep(1);
-    
     return 0;
 }
 
 
-void getResponse() {
+void getResponse(int timeout) {
 	char  fifoName[10];
 	int fdAnswers;
 	char response[200];
+	time_t base = time (0);
 
     sprintf(fifoName, "ans%d", getpid());
     
     mkfifo(fifoName, 0660);
     fdAnswers = open(fifoName, O_RDONLY);
     
-    while(readline(fdAnswers, response)) printf("%s", response);
+    while(readline(fdAnswers, response) && ((time(0) - base) < (timeout+2))) {
+    	printf("%s", response);
+    }
+
     close(fdAnswers);
+    printf("ended timeout.");
 }
 
 
