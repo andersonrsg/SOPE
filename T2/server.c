@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
+#include <pthread.h>
 
 // Defined constants
 #define MAX_MSG_LEN 100
@@ -27,15 +28,19 @@ typedef struct{
     unsigned int client;
     unsigned int num_seats;
     unsigned int *preferred_seats;
-} request;
+} requests;
 
 // Functions
+int get_number_size(size_t number);
+char* makeClientFIFO(int pid);
+void requestHandler(char* request);
 
 int main(int argc, char const *argv[]) {
     int fd,         // File Descriptor
         fd_dummy,   // Dummy File Descriptor
-        n;          // Number of characters read
-    char str[100];
+        n;          // store the number of char's read
+    char request[MAX_MSG_LEN+1];
+
 
     // Usage
     if(argc != 4){
@@ -70,10 +75,10 @@ int main(int argc, char const *argv[]) {
     }
 
     // Receive requests
-    do {
-        n = read(fd, str, MAX_MSG_LEN);
-        printf("Message: %s\n", str);
-    } while(n > 0);
+    while ((n = read(fd, request, MAX_MSG_LEN)) > 0) {
+        printf("received request: %s\n", request);
+        requestHandler(request);
+    }
 
     // Close FIFO 'requests'
     close(fd);
@@ -87,4 +92,61 @@ int main(int argc, char const *argv[]) {
 
     // Exit program successfuly
     exit(0);
+}
+
+void requestHandler(char* request){
+    requests rq;
+    char *token,
+         *delim = " ";
+    int *seats = NULL,
+        i = 0;
+
+    // get client PID
+    printf("[REQUEST HANDLER]: extracting Client PID from request\n");
+    token = strtok(request, delim);
+    rq.client = strtol(token, NULL, 10);
+    printf("[REQUEST HANDLER]: extracted Client PID from request: %d\n", rq.client);
+
+    printf("[REQUEST HANDLER]: extracting Client desired number of seats from request\n");
+    // get client desired number of seats
+    token = strtok(NULL, delim);
+    rq.num_seats = strtol(token, NULL, 10);
+    printf("[REQUEST HANDLER]: extracted Client desired number of seats from request: %d\n", rq.num_seats);
+
+    printf("[REQUEST HANDLER]: extracting Client desired seats from request\n");
+    // get the desired seats
+    while(token != NULL){
+        token = strtok(NULL, delim);
+        seats = (int*)realloc(seats, ++i * sizeof(int));
+        seats[i-1] = strtol(token, NULL, 10);
+    }
+
+    rq.preferred_seats = memcpy(rq.preferred_seats, seats, i * sizeof(unsigned int));
+    printf("[REQUEST HANDLER]: extracted Client desired number of seats from request\n");
+
+    printf("Cliente: %d\n", rq.client);
+    printf("Num seats: %d\n", rq.client);
+    printf("desired seats: ");
+    for(int j = 0; j < i; j++){
+        printf("%d ", rq.preferred_seats[j]);
+    }
+    printf("\n");
+}
+
+
+int get_number_size(size_t number){
+    int i = 0;
+    do {
+        number /= 10;
+        i++;
+    } while(number > 0);
+    return i;
+}
+
+char* makeClientFIFO(int pid){
+    char* fifo = (char*)malloc(strlen("ans") + get_number_size(pid) + 1);
+
+    sprintf(fifo, "ans%d", pid);
+
+    return fifo;
 }

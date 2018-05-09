@@ -1,5 +1,5 @@
 CC 		= gcc
-CFLAGS 	= -Wall -Wextra
+CFLAGS 	= -Wall -Wextra -D_REENTRANT -lpthread
 RM 		= rm -f
 
 default: all
