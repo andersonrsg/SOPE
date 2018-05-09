@@ -5,33 +5,37 @@
 #include <string.h>
 #include <sys/stat.h>
 
-void postRequest(char *argv[]);
+void postRequest(char *argv[], pid_t pid);
 void getResponse();
+int readline(int fd, char *str);
 
 int main(int argc, char *argv[]) {
     printf("** Running process %d (PGID %d) **\n", getpid(), getpgrp());
     
-    int   fdAnswers;
     pid_t pid = getpid();
     
-    int messagelen;
-    char message[200];
-    char str[200];
+    // int messagelen;
+    // char message[200];
+    // char str[200];
     
     
-    if (argc != 3) {
+    if (argc != 4) {
+
         printf("It should be passed to the client three arguments.\n");
         
     } else {
-        printf("ARGS: %s | %s\n", argv[1], argv[2]);
+        printf("ARGS: %s | %s | %s\n", argv[1], argv[2], argv[3]);
     }
     
-    
-    postRequest(argv);
+ 	if (fork() == 0){
+		getResponse();
+ 	} else {
+ 		sleep(2);
+ 		postRequest(argv, pid);
+ 	}    
     
     sleep(1);
     
-    getResponse();
     
     
     
@@ -51,23 +55,24 @@ int main(int argc, char *argv[]) {
 
 
 void getResponse() {
-	// char  fifoName[10];
- //    sprintf(fifoName, "ans%d", getpid());
+	char  fifoName[10];
+	int fdAnswers;
+	char response[200];
+
+    sprintf(fifoName, "ans%d", getpid());
     
+    mkfifo(fifoName, 0660);
+    fdAnswers = open(fifoName, O_RDONLY);
     
- //    mkfifo(fifoName, 0660);
- //    fdAnswers = open(fifoName, O_RDONLY);
-    
- //    while(readline(fdAnswers,str)) printf("%s", str);
- //    close(fdAnswers);
+    while(readline(fdAnswers, response)) printf("%s", response);
+    close(fdAnswers);
 }
 
 
 // Processo para realizar a requisição
-void postRequest(char *argv[]) {
+void postRequest(char *argv[], pid_t pid) {
     int fdRequest;
     char message[200];
-    char messageArthur[200];
     int messagelen;
     
     do {
@@ -76,11 +81,20 @@ void postRequest(char *argv[]) {
     } while (fdRequest == -1);
     
 
-    sprintf(message, "%d ", getpid());
-    strcat(message, argv[1]);
-    strcat(message, " ");
+    sprintf(message, "%d ", pid);
     strcat(message, argv[2]);
+    strcat(message, " ");
+    strcat(message, argv[3]);
 
     messagelen = strlen(message) + 1;
     write(fdRequest, message, messagelen);    
+}
+
+int readline(int fd, char *str)
+{
+    int n;
+    do {
+        n = read(fd,str,1);
+    } while (n>0 && *str++ != '\0');
+    return (n>0);
 }
