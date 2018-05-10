@@ -8,11 +8,16 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+#define WIDTH_PID "5"
+#define WIDTH_XX "2"
+#define WIDTH_NN "2"
+#define WIDTH_SEAT "4"
+
 void postRequest(char *argv[], pid_t pid);
 void getResponse(int timeout, pid_t pid);
 int readline(int fd, char *str);
 void parseResponse(char *response, pid_t pid);
-void writeLog(pid_t pid, int reservedSeats, char *seats, char* id, char* error);
+void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids);
 
 
 int main(int argc, char *argv[]) {
@@ -34,29 +39,39 @@ int main(int argc, char *argv[]) {
     }
     timeout = atoi(argv[1]);
     
-        pid = fork();
-        if (pid == -1) {
-            printf("Fatal error.");
-            exit(0);
-        } else if (pid == 0) {
-            //        sleep(2);
-            //        postRequest(argv, pid);
-    
-            getResponse(timeout, pids);
-        } else {
-            //        getResponse(timeout);
-    
-            sleep(2);
-            postRequest(argv, pids);
-        }
+    pid = fork();
+    if (pid == -1) {
+        printf("Fatal error.");
+        exit(0);
+    } else if (pid == 0) {
+        //        sleep(2);
+        //        postRequest(argv, pid);
+        
+        getResponse(timeout, pids);
+    } else {
+        //        getResponse(timeout);
+        
+        sleep(2);
+        postRequest(argv, pids);
+    }
     
     sleep(1);
     
-    
-    char message[50] = "7 8 9 10 11";
-    char message2[50] = "29 99 101 102 9103";
-    
-//    writeLog(pids, 5, message, message2, "");
+//
+//    char message[50] = "7 8 9 10 11";
+//    char message2[50] = "29 99 101 102 9103";
+//
+//    char message3[50] = "7 8 9 10 11";
+//    char message4[50] = "29 99 101 102 9103";
+//    writeLog(pids, 5, message, message2);
+//
+//    writeLog(pids, 3, message3, message4);
+//    writeLog(pids, -1, NULL, NULL);
+//    writeLog(pids, -2, NULL, NULL);
+//    writeLog(pids, -3, NULL, NULL);
+//    writeLog(pids, -4, NULL, NULL);
+//    writeLog(pids, -5, NULL, NULL);
+//    writeLog(pids, -6, NULL, NULL);
     
     
     
@@ -70,55 +85,72 @@ int main(int argc, char *argv[]) {
  reservedSeats: The error id in case reservedSeats < 0 and the number of reserved seats in case reservedSeats > 0
  seats: The string with all the reserved seats.
  */
-void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids, char* error) {
+void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids) {
     
-    int fd;
-//    char pidMessage[6];
+    int fd, fdbook;
+    char messageId[10];
     char message[200];
     int seatInt;
-    int idInt;
+    //    int idInt;
     char *currSeat;
     char *currId;
-    char *saveptr1, *saveptr2;
     
     if ((fd = open("clog.txt", O_WRONLY | O_APPEND | O_CREAT, 0644)) < 0) {
         perror("Logfile");
         exit(1);
     }
-    
+    if ((fdbook = open("cbook.txt", O_WRONLY | O_APPEND | O_CREAT, 0644)) < 0) {
+        perror("Book");
+        exit(1);
+    }
     
     
     if (reservedSeats > 0) {
+        int *arrayIds = (int *)malloc(reservedSeats * sizeof(int));
+        currId = strtok(ids, " ");
+        for (int i = 0; i < reservedSeats; i++) {
+            arrayIds[i] = atoi(currId);
+            currId = strtok(NULL, " ");
+        }
         
-        currSeat = strtok_r(seats, " ", &saveptr1);
-        currId = strtok_r(ids, " ", &saveptr2);
-        while (currSeat != NULL) {
-            seatInt = atoi(currSeat);
-            idInt = atoi(currId);
+        currSeat = strtok(seats, " ");
+        for (int i = 0; i < reservedSeats; i++) {
             
-            snprintf(message, sizeof message, "%05d %02d.%02d %04d", pid, seatInt, reservedSeats, idInt);
-            strcat(message, "\n");
-            
-            //            strcat(message, pidMessage);
-            //            strcat(message, " ");
-            //            strcat(message, currSeat);
-            //            strcat(message, ".");
-            //            write(fd, message, strlen(message));
-            //            snprintf(message, sizeof(message), "%d %s", reservedSeats, id);
+            snprintf(message, sizeof message, "%0"WIDTH_PID"d %0"WIDTH_XX"d.%0"WIDTH_NN"d %0"WIDTH_SEAT"d\n", pid, atoi(currSeat), reservedSeats, *arrayIds++);
             
             write(fd, message, strlen(message));
             
-            currSeat = strtok_r(seats, " ", &saveptr1);
-            currId = strtok_r(ids, " ", &saveptr2);
+            snprintf(messageId, sizeof messageId, "%0"WIDTH_SEAT"d\n", *arrayIds);
+            write(fdbook, messageId, strlen (messageId));
+            
+            currSeat = strtok(NULL, " ");
         }
         
     } else {
-        strcat(message, error);
+        char errorMessage[4];
+        if (reservedSeats == -1) {
+            sprintf(errorMessage, "MAX");
+        } else if (reservedSeats == -2) {
+            sprintf(errorMessage, "NST");
+        } else if (reservedSeats == -3) {
+            sprintf(errorMessage, "IID");
+        } else if (reservedSeats == -4) {
+            sprintf(errorMessage, "ERR");
+        } else if (reservedSeats == -5) {
+            sprintf(errorMessage, "NAV");
+        } else if (reservedSeats == -6) {
+            sprintf(errorMessage, "FUL");
+        }
+        
+        snprintf(message, sizeof message, "%05d %s", pid, errorMessage);
+        strcat(message, "\n");
+        
+        write(fd, message, strlen(message));
     }
     
     
     
-    write(fd, message, strlen(message));
+    //    write(fd, message, strlen(message));
     close(fd);
     
 }
@@ -148,12 +180,11 @@ void parseResponse(char *response, pid_t pid) {
     int id;
     int aux;
     
-    
     part = strtok (response, " ");
     id = atoi(part);
     
     if (id < 0) {
-        //        writeLog(<#pid_t pid#>, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
+//        writeLog(pid, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
         if (id == -1) {
             part = strtok(NULL, " ");
             aux = atoi(part);
