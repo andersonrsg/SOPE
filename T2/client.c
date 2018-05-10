@@ -148,8 +148,6 @@ void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids) {
         write(fd, message, strlen(message));
     }
     
-    
-    
     //    write(fd, message, strlen(message));
     close(fd);
     
@@ -167,12 +165,13 @@ void getResponse(int timeout, pid_t pid) {
     fdAnswers = open(fifoName, O_RDONLY);
     
     while(readline(fdAnswers, response) && ((time(0) - base) < (timeout+2))) {
-        printf("%s", response);
+        printf("RESPONSE: %s", response);
         parseResponse(response, pid);
     }
     
     close(fdAnswers);
     printf("ended timeout.");
+    exit(0);
 }
 
 void parseResponse(char *response, pid_t pid) {
@@ -183,12 +182,16 @@ void parseResponse(char *response, pid_t pid) {
     part = strtok (response, " ");
     id = atoi(part);
     
+    printf("RESPONSE BEFORE PARSE: %s", response);
+    
     if (id < 0) {
 //        writeLog(pid, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
+        
+        printf("\n");
         if (id == -1) {
             part = strtok(NULL, " ");
             aux = atoi(part);
-            
+    
             printf("The number of desired seats is greater than the max allowed. (%d)", aux);
         } else if (id == -2) {
             printf("The number of id's of the desired seats aren't valid.");
@@ -202,9 +205,9 @@ void parseResponse(char *response, pid_t pid) {
             printf("The room is full.");
         }
     } else {
-        part = strtok(NULL, " ");
+//        part = strtok(NULL, " ");
         aux = atoi(part);
-        
+        printf("%d", aux);
     }
 }
 
@@ -229,6 +232,8 @@ void postRequest(char *argv[], pid_t pid) {
     
     messagelen = strlen(message) + 1;
     write(fdRequest, message, messagelen);
+    
+    exit(0);
 }
 
 int readline(int fd, char *str)
