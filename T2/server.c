@@ -146,20 +146,20 @@ void *requestHandler(void *request){
 
     //validate request
     if(rq->num_wanted_seats > MAX_CLI_SEATS){
-        fprintf(stderr, "[TICKET OFFICE %d]: Number of seats wanted higher than permited (%d)\n", pthread_self(), MAX_CLI_SEATS);
+        fprintf(stderr, "[TICKET OFFICE %ld]: Number of seats wanted higher than permited (%d)\n", pthread_self(), MAX_CLI_SEATS);
         return NULL;
     }
     if((sizeof(rq->preferred_seats) / sizeof(unsigned int)) < rq->num_wanted_seats){
-        fprintf(stderr, "[TICKET OFFICE %d]: Number of preferred seats smaller than number of wanted seats (%d)\n", pthread_self(), rq->num_wanted_seats);
+        fprintf(stderr, "[TICKET OFFICE %ld]: Number of preferred seats smaller than number of wanted seats (%d)\n", pthread_self(), rq->num_wanted_seats);
         return NULL;
     }
     if((sizeof(rq->preferred_seats) / sizeof(unsigned int)) > MAX_CLI_SEATS){
-        fprintf(stderr, "[TICKET OFFICE %d]: Number of preferred seats bigger than permited (%d)\n", pthread_self(), MAX_CLI_SEATS);
+        fprintf(stderr, "[TICKET OFFICE %ld]: Number of preferred seats bigger than permited (%d)\n", pthread_self(), MAX_CLI_SEATS);
         return NULL;
     }
-    for (int i = 0; i < (sizeof(rq->preferred_seats) / sizeof(unsigned int)); i++) {
+    for (unsigned int i = 0; i < (sizeof(rq->preferred_seats) / sizeof(unsigned int)); i++) {
         if(rq->preferred_seats[i] > num_room_seats){
-            fprintf(stderr, "[TICKET OFFICE %d]: Preferred seat %d do not exist\n", pthread_self(), rq->preferred_seats[i]);
+            fprintf(stderr, "[TICKET OFFICE %ld]: Preferred seat %d do not exist\n", pthread_self(), rq->preferred_seats[i]);
             return NULL;
         }
     }
