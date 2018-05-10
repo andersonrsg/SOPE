@@ -21,12 +21,12 @@
 #define MAX_CLI_SEATS 10
 
 // Defined Error constants
-#define INVALID_NUM_SEAT         "-1"   // Number of desired seats is higher than permited
-#define INVALID_NUM_PREF_SEAT    "-2"   // Number of prefered seats is invalid
-#define INVALID_SEAT_ID          "-3"   // ID of prefered seat is invalid
-#define PARAM_ERROR              "-4"   // Any other parameter error
-#define BOOKING_FAILED           "-5"   // Could not reservate all the desired seats
-#define FULL_ROOM                "-6"   // The room is full
+#define INVALID_NUM_SEAT         -1   // Number of desired seats is higher than permited
+#define INVALID_NUM_PREF_SEAT    -2   // Number of prefered seats is invalid
+#define INVALID_SEAT_ID          -3   // ID of prefered seat is invalid
+#define PARAM_ERROR              -4   // Any other parameter error
+#define BOOKING_FAILED           -5   // Could not reservate all the desired seats
+#define FULL_ROOM                -6   // The room is full
 
 // Global variables
 int num_room_seats;        // Number of seats
@@ -104,9 +104,9 @@ int main(int argc, char const *argv[]) {
 
     // Destroy FIFO 'requests'
     if(unlink("requests") < 0)
-        fprintf(stderr, "Error destroying FIFO 'requests'\n");
+        fprintf(stderr, "[MAIN]: Error destroying FIFO 'requests'\n");
     else
-        fprintf(stdout, "FIFO 'requests' has been destroyed\n");
+        fprintf(stdout, "[MAIN]: FIFO 'requests' has been destroyed\n");
 
     // Exit program successfuly
     exit(0);
@@ -165,6 +165,7 @@ void *requestHandler(void *request){
 
     if((fd = open(fifo, O_WRONLY)) < 0){
         fprintf(stderr, "[TICKET OFFICE %ld]: Error opening FIFO '%s'\n", tid, fifo);
+        return NULL;
     }
 
     // Validate request
@@ -176,13 +177,15 @@ void *requestHandler(void *request){
 
     if(room_full){
         fprintf(stderr, "[TICKET OFFICE %ld]: Room is full\n", tid);
-        write(fd, FULL_ROOM, sizeof(FULL_ROOM));
+        sprintf(msg, "%d", FULL_ROOM);
+        write(fd, msg, strlen(msg) + 1);
         return NULL;
     }
 
     if(rq->num_wanted_seats > MAX_CLI_SEATS){
         fprintf(stderr, "[TICKET OFFICE %ld]: Number of seats wanted higher than permited (%d)\n", tid, MAX_CLI_SEATS-1);
-        write(fd, INVALID_NUM_SEAT, sizeof(INVALID_NUM_SEAT));
+        sprintf(msg, "%d", INVALID_NUM_SEAT);
+        write(fd, msg, strlen(msg) + 1);
         return NULL;
     }
 
@@ -192,18 +195,21 @@ void *requestHandler(void *request){
     for (int i = 0; i < num_prefered_seats; i++) {
         if(rq->preferred_seats[i] >= num_room_seats || rq->preferred_seats[i] < 0){
             fprintf(stderr, "[TICKET OFFICE %ld]: Preferred seat %d do not exist\n", tid, rq->preferred_seats[i] + 1);
-            write(fd, INVALID_SEAT_ID, sizeof(INVALID_SEAT_ID));
+            sprintf(msg, "%d", INVALID_SEAT_ID);
+            write(fd, msg, strlen(msg) + 1);
             rq->preferred_seats[i] = -1;
         }
     }
     if(num_prefered_seats < rq->num_wanted_seats){
         fprintf(stderr, "[TICKET OFFICE %ld]: Number of preferred seats (%d) smaller than number of wanted seats (%d)\n", tid, num_prefered_seats, rq->num_wanted_seats);
-        write(fd, INVALID_NUM_PREF_SEAT, sizeof(INVALID_NUM_PREF_SEAT));
+        sprintf(msg, "%d", INVALID_NUM_PREF_SEAT);
+        write(fd, msg, strlen(msg) + 1);
         return NULL;
     }
     if(num_prefered_seats > MAX_CLI_SEATS){
         fprintf(stderr, "[TICKET OFFICE %ld]: Number of preferred seats bigger than permited (%d)\n", tid, MAX_CLI_SEATS-1);
-        write(fd, INVALID_NUM_PREF_SEAT, sizeof(INVALID_NUM_PREF_SEAT));
+        sprintf(msg, "%d", INVALID_NUM_PREF_SEAT);
+        write(fd, msg, strlen(msg) + 1);
         return NULL;
     }
 
@@ -225,7 +231,8 @@ void *requestHandler(void *request){
 
     if(rq->num_wanted_seats){   // Could not reservate the total number of desired seats
         printf("[TICKET OFFICE %ld]: Could not book the total number of seats desired. Rolling back booking operation\n", tid);
-        write(fd, BOOKING_FAILED, sizeof(BOOKING_FAILED));
+        sprintf(msg, "%d", BOOKING_FAILED);
+        write(fd, msg, strlen(msg) + 1);
         // Rollback operation
         for (int i = 0; i < num_prefered_seats; i++) {
             if (rq->preferred_seats[i] != -1) {
