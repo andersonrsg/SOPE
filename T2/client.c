@@ -7,56 +7,53 @@
 #include <time.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <pthread.h>
 
 #define WIDTH_PID "5"
 #define WIDTH_XX "2"
 #define WIDTH_NN "2"
 #define WIDTH_SEAT "4"
 
-void postRequest(char *argv[], pid_t pid);
-void getResponse(int timeout, pid_t pid);
+struct response {
+    int timeout;
+    int pid;
+};
+
+void *postRequest(char *argv[], pid_t pid);
+//void getResponse(int timeout, pid_t pid);
+void *getResponse(void *arg);
 int readline(int fd, char *str);
 void parseResponse(char *response, pid_t pid);
-void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids);
+void writeLog(pid_t pid, int reservedSeats, char *seats);
 
 
 int main(int argc, char *argv[]) {
-    printf("** Running process %d (PGID %d) **\n", getpid(), getpgrp());
-    
     pid_t pids = getpid();
-    pid_t pid;
+    
     int timeout = 0;
+    pthread_t tresponse;
+    struct response resp;
     
-    // int messagelen;
-    // char message[200];
-    // char str[200];
-    
+//    printf("** Running process %d (PGID %d) **\n", pids, getpgrp());
     
     if (argc != 4) {
         printf("It should be passed to the client three arguments.\n");
     } else {
         printf("ARGS: %s | %s | %s\n", argv[1], argv[2], argv[3]);
     }
-    timeout = atoi(argv[1]);
+    printf("[CLIENT]: client started with id %d\n", pids);
     
-//    pid = fork();
-//    if (pid == -1) {
-//        printf("Fatal error.");
-//        exit(0);
-//    } else if (pid == 0) {
-//        sleep(2);
-        postRequest(argv, pids);
-        
-        //        getResponse(timeout, pids);
-//    } else {
-        getResponse(timeout, pids);
-        
-        //        sleep(2);
-        //        postRequest(argv, pids);
-        //
-        //        int returnStatus;
-        //        waitpid(-1, &returnStatus, 0);
-//    }
+    timeout = atoi(argv[1]);
+
+    resp.timeout = timeout;
+    resp.pid = pids;
+    if(pthread_create(&tresponse, NULL, getResponse, &resp)){
+        printf("[CLIENT %d]: failed to wait for response\n", pids);
+        exit(1);
+    }
+    
+    postRequest(argv, pids);
+    
     
     sleep(1);
     
@@ -77,8 +74,7 @@ int main(int argc, char *argv[]) {
     //    writeLog(pids, -6, NULL, NULL);
     
     
-    
-    sleep(1);
+    printf("[CLIENT %d]: finished execution\n", pids);
     return 0;
 }
 
@@ -88,16 +84,13 @@ int main(int argc, char *argv[]) {
  reservedSeats: The error id in case reservedSeats < 0 and the number of reserved seats in case reservedSeats > 0
  seats: The string with all the reserved seats.
  */
-void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids) {
+void writeLog(pid_t pid, int reservedSeats, char *seats) {
     
     int fd, fdbook;
     char messageId[10];
     char message[200];
-    int seatInt;
-    //    int idInt;
     char *currSeat;
-    char *currId;
-    
+
     if ((fd = open("clog.txt", O_WRONLY | O_APPEND | O_CREAT, 0644)) < 0) {
         perror("Logfile");
         exit(1);
@@ -109,21 +102,17 @@ void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids) {
     
     
     if (reservedSeats > 0) {
-        int *arrayIds = (int *)malloc(reservedSeats * sizeof(int));
-        currId = strtok(ids, " ");
-        for (int i = 0; i < reservedSeats; i++) {
-            arrayIds[i] = atoi(currId);
-            currId = strtok(NULL, " ");
-        }
         
         currSeat = strtok(seats, " ");
         for (int i = 0; i < reservedSeats; i++) {
             
-            snprintf(message, sizeof message, "%0"WIDTH_PID"d %0"WIDTH_XX"d.%0"WIDTH_NN"d %0"WIDTH_SEAT"d\n", pid, atoi(currSeat), reservedSeats, *arrayIds++);
+            int currSeatInt = atoi(currSeat);
+            
+            snprintf(message, sizeof message, "%0"WIDTH_PID"d %0"WIDTH_XX"d.%0"WIDTH_NN"d %0"WIDTH_SEAT"d\n", pid, i, reservedSeats, currSeatInt);
             
             write(fd, message, strlen(message));
             
-            snprintf(messageId, sizeof messageId, "%0"WIDTH_SEAT"d\n", *arrayIds);
+            snprintf(messageId, sizeof messageId, "%0"WIDTH_SEAT"d\n", currSeatInt);
             write(fdbook, messageId, strlen (messageId));
             
             currSeat = strtok(NULL, " ");
@@ -145,8 +134,7 @@ void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids) {
             sprintf(errorMessage, "FUL");
         }
         
-        snprintf(message, sizeof message, "%05d %s", pid, errorMessage);
-        strcat(message, "\n");
+        snprintf(message, sizeof message, "%05d %s\n", pid, errorMessage);
         
         write(fd, message, strlen(message));
     }
@@ -156,26 +144,28 @@ void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids) {
     
 }
 
-void getResponse(int timeout, pid_t pid) {
+//void getResponse(int timeout, pid_t pid) {
+void *getResponse(void *arg) {
+    
+    struct response *param = (struct response*) arg;
+    
     char fifoName[10];
     int fdAnswers;
     char response[200];
     time_t base = time (0);
     
-    sprintf(fifoName, "ans%d", pid);
+    sprintf(fifoName, "ans%d", param->pid);
     
     mkfifo(fifoName, 0660);
     fdAnswers = open(fifoName, O_RDONLY);
     
-    printf("[CLIENT %d]: waiting for response\n", pid);
-    
-    while(readline(fdAnswers, response) && ((time(0) - base) < (timeout+2))) {
-        printf("RESPONSE: %s", response);
-        parseResponse(response, pid);
+    while(readline(fdAnswers, response) && ((time(0) - base) < (param->timeout+2))) {
+//        printf("RESPONSE: %s\n", response);
+        parseResponse(response, param->pid);
     }
     
     close(fdAnswers);
-    printf("ended timeout");
+    printf("[CLIENT %d]: request timeout\n", param->pid);
     unlink(fifoName);
     
     exit(0);
@@ -185,12 +175,16 @@ void parseResponse(char *response, pid_t pid) {
     char *part;
     int id;
     int aux;
-    printf("RESPONSE BEFORE PARSE: %s\n", response);
+    printf("[CLIENT %d]: received response %s\n", pid, response);
+    sleep(1);
     
     part = strtok (response, " ");
     id = atoi(part);
     
-    if (id < 0) {
+    if (id == 0) {
+        sleep(1);
+        printf("[CLIENT %d]: error in server response.\n", pid);
+    } else if (id < 0) {
         //        writeLog(pid, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
         
         printf("\n");
@@ -213,13 +207,14 @@ void parseResponse(char *response, pid_t pid) {
     } else {
         //        part = strtok(NULL, " ");
         aux = atoi(part);
-        printf("%d", aux);
+        printf("[CLIENT %d]: received response: %d\n", pid, aux);
     }
 }
 
 
 // Processo para realizar a requisição
-void postRequest(char *argv[], pid_t pid) {
+void *postRequest(char *argv[], pid_t pid) {
+    sleep(3);
     int fdRequest;
     char message[200];
     int messagelen;
@@ -241,9 +236,10 @@ void postRequest(char *argv[], pid_t pid) {
     
     write(fdRequest, message, messagelen);
     printf("[CLIENT %d]: successfully sent request\n", pid);
-    getResponse(120, pid);
+    sleep(1);
+    printf("[CLIENT %d]: waiting for response\n", pid);
     
-    exit(0);
+    return NULL;
 }
 
 int readline(int fd, char *str)
