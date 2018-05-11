@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <signal.h>
 
 // Defined constants
 #define SHARED 0                        // semaphore is shared between threads
@@ -30,11 +31,15 @@
 #define BOOKING_FAILED           "-5"   // Could not reservate all the desired seats
 #define FULL_ROOM                "-6"   // The room is full
 
+// Defined function-like macros
+#define DELAY(sec)          sleep(sec)  // Simulate the existence of some delay
+
 // Global variables
 int num_room_seats;                     // Number of seats
 int num_tickets_offices;                // Number of ticket offices (threads)
 unsigned long int open_time;            // ticket offices open time (seconds)
 int *seats;                             // Seats
+int keep_going;                         // Alarm flag
 typedef struct{
     int client;                         // store the PID of the client
     int num_wanted_seats;               // store the number of wanted seats
@@ -56,6 +61,7 @@ int validateRequest(int *seats, requests *request);
 int isSeatFree(int *seats, int seatNum);
 void bookSeat(int *seats, int seatNum, int clientId);
 void freeSeat(int *seats, int seatNum);
+void alarmHandler(int signum);
 
 
 // MAIN
@@ -77,6 +83,7 @@ int main(int argc, char const *argv[]) {
     num_room_seats = strtol(argv[1], NULL, 10);
     num_tickets_offices = strtol(argv[2], NULL, 10);
     open_time = strtol(argv[3], NULL, 10);
+    keep_going = 1;
     seats = malloc(num_room_seats * sizeof(int));
     memset(seats, 0, num_room_seats * sizeof(int));
     rq_buffer = NULL;
@@ -117,9 +124,22 @@ int main(int argc, char const *argv[]) {
     }
     printf("[MAIN]: Created %d ticket offices\n", num_tickets_offices);
 
-    printf("[MAIN]: Ready to recieve requests\n");
+    // Estrablish SIGALRM handler
+    printf("[MAIN]: Establishing SIGALRM handler\n");
+    signal(SIGALRM, alarmHandler);
+    printf("[MAIN]: Established SIGALRM handler\n");
+
+    // Set alarm to signal after <open_time> seconds
+    printf("[MAIN]: Setting alarm to %ld seconds\n", open_time);
+    if(alarm(open_time)){
+        printf("[MAIN]: An alarm is already set and preventing the proper installation of a new alarm\n");
+        exit(1);
+    }
+    printf("[MAIN]: Alarm setted\n");
+
     // Receive requests
-    while (1) {
+    printf("[MAIN]: Ready to recieve requests\n");
+    while (keep_going) {
         if(read(fd, request, MAX_MSG_LEN) > 0){
             printf("recieved request: %s\n", request);
             rq = requestDisassembler(request);
@@ -144,8 +164,9 @@ int main(int argc, char const *argv[]) {
     // Terminate threads
     printf("[MAIN]: Terminating %d ticket offices\n", num_tickets_offices);
     for (int i = 0; i < num_tickets_offices; i++) {
-        pthread_cancel(tids[i]);
-        pthread_join(tids[i], NULL);
+        if(pthread_cancel(tids[i])){
+            printf("[MAIN]: No thread if id %ld found\n", tids[i]);
+        }
     }
     printf("[MAIN]: Terminated %d ticket offices\n", num_tickets_offices);
 
@@ -337,9 +358,10 @@ char* getClientFIFO(int pid){
 
 void *requestHandler(void *tid){
     requests *rq;
+    requests *aux;
     int err = 0,
         fd,
-        num_preferred_seats = 0,
+        num_preferred_seats,
         tnum = *(int*)tid;
     char *fifo,
          msg[MAX_MSG_LEN];
@@ -351,6 +373,7 @@ void *requestHandler(void *tid){
         }
         rq = rq_buffer;
         rq_buffer = NULL;
+        aux = rq;
 
         fifo = malloc(sizeof("ans") + get_number_size(rq->client) + 1);
 
@@ -370,35 +393,36 @@ void *requestHandler(void *tid){
 
         // Handle request
         if((err = validateRequest(seats, rq)) == 0){
+            num_preferred_seats = 0;
             for (int i = 0; rq->preferred_seats[i] != -1; i++) {
                 num_preferred_seats++;
             }
 
 
             // Reservate seats
-            for (int i = 0; i < num_preferred_seats && rq->num_wanted_seats; i++) {
+            for (int i = 0; i < num_preferred_seats && aux->num_wanted_seats; i++) {
                 pthread_mutex_lock(&seats_mut);
                 if(isSeatFree(seats, rq->preferred_seats[i])){
                     bookSeat(seats, rq->preferred_seats[i], rq->client);
                     printf("[TICKET OFFICE %d]: Seat %d booked\n", tnum, rq->preferred_seats[i] + 1);
-                    rq->num_wanted_seats--;
+                    aux->num_wanted_seats--;
                 }
                 else{
                     printf("[TICKET OFFICE %d]: Seat %d already taken\n", tnum, rq->preferred_seats[i] + 1);
-                    rq->preferred_seats[i] = -1;
+                    aux->preferred_seats[i] = -1;
                 }
                 pthread_mutex_unlock(&seats_mut);
 
             }
 
 
-            if(rq->num_wanted_seats){   // Could not reservate the total number of desired seats
+            if(aux->num_wanted_seats){   // Could not reservate the total number of desired seats
                 printf("[TICKET OFFICE %d]: Could not book the total number of seats desired. Rolling back booking operation\n", tnum);
                 write(fd, BOOKING_FAILED, sizeof(BOOKING_FAILED));
                 // Rollback operation
                 pthread_mutex_lock(&seats_mut);
                 for (int i = 0; i < num_preferred_seats; i++) {
-                    if (rq->preferred_seats[i] != -1) {
+                    if (aux->preferred_seats[i] != -1) {
                         freeSeat(seats, rq->preferred_seats[i]);
                     }
                 }
@@ -444,4 +468,12 @@ void *requestHandler(void *tid){
 
         pthread_mutex_unlock(&rqt_mut);
     }
+
+    pthread_exit(NULL);
+}
+
+void alarmHandler(int signum){
+    keep_going = 0;
+    signum = signum;
+    printf("[MAIN]: Closing time!\n");
 }
