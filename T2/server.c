@@ -214,7 +214,7 @@ void *requestHandler(void *request){
                 }
             }
 
-            write(fd, msg, strlen(msg) + 1);
+            write(fd, msg, sizeof(msg));
         }
 
         printf("\n");
