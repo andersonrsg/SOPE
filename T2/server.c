@@ -150,7 +150,7 @@ int main(int argc, char const *argv[]) {
     }
 
     // Close FIFO 'requests'
-    printf("[MAIN]: Cloing FIFO 'requests'\n");
+    printf("[MAIN]: Closing FIFO 'requests'\n");
     close(fd);
     printf("[MAIN]: FIFO 'requests' closed\n");
 
@@ -171,6 +171,7 @@ int main(int argc, char const *argv[]) {
     printf("[MAIN]: Terminated %d ticket offices\n", num_tickets_offices);
 
     // Exit program successfuly
+    printf("[MAIN]: Terminating server\n");
     exit(0);
 }
 
@@ -358,10 +359,11 @@ char* getClientFIFO(int pid){
 
 void *requestHandler(void *tid){
     requests *rq;
-    requests *aux;
     int err = 0,
         fd,
         num_preferred_seats,
+        num_wanted_seats,
+        *preferred_seats,
         tnum = *(int*)tid;
     char *fifo,
          msg[MAX_MSG_LEN];
@@ -373,7 +375,6 @@ void *requestHandler(void *tid){
         }
         rq = rq_buffer;
         rq_buffer = NULL;
-        aux = rq;
 
         fifo = malloc(sizeof("ans") + get_number_size(rq->client) + 1);
 
@@ -393,36 +394,41 @@ void *requestHandler(void *tid){
 
         // Handle request
         if((err = validateRequest(seats, rq)) == 0){
+
             num_preferred_seats = 0;
+            num_wanted_seats = rq->num_wanted_seats;
+            preferred_seats = malloc(sizeof(rq->preferred_seats));
+
             for (int i = 0; rq->preferred_seats[i] != -1; i++) {
                 num_preferred_seats++;
+                preferred_seats[i] = rq->preferred_seats[i];
             }
 
 
             // Reservate seats
-            for (int i = 0; i < num_preferred_seats && aux->num_wanted_seats; i++) {
+            for (int i = 0; i < num_preferred_seats && num_wanted_seats; i++) {
                 pthread_mutex_lock(&seats_mut);
                 if(isSeatFree(seats, rq->preferred_seats[i])){
                     bookSeat(seats, rq->preferred_seats[i], rq->client);
                     printf("[TICKET OFFICE %d]: Seat %d booked\n", tnum, rq->preferred_seats[i] + 1);
-                    aux->num_wanted_seats--;
+                    num_wanted_seats--;
                 }
                 else{
                     printf("[TICKET OFFICE %d]: Seat %d already taken\n", tnum, rq->preferred_seats[i] + 1);
-                    aux->preferred_seats[i] = -1;
+                    preferred_seats[i] = -1;
                 }
                 pthread_mutex_unlock(&seats_mut);
 
             }
 
 
-            if(aux->num_wanted_seats){   // Could not reservate the total number of desired seats
+            if(num_wanted_seats){   // Could not reservate the total number of desired seats
                 printf("[TICKET OFFICE %d]: Could not book the total number of seats desired. Rolling back booking operation\n", tnum);
                 write(fd, BOOKING_FAILED, sizeof(BOOKING_FAILED));
                 // Rollback operation
                 pthread_mutex_lock(&seats_mut);
                 for (int i = 0; i < num_preferred_seats; i++) {
-                    if (aux->preferred_seats[i] != -1) {
+                    if (preferred_seats[i] != -1) {
                         freeSeat(seats, rq->preferred_seats[i]);
                     }
                 }
