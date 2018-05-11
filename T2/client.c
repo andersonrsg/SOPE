@@ -39,42 +39,42 @@ int main(int argc, char *argv[]) {
     }
     timeout = atoi(argv[1]);
     
-    pid = fork();
-    if (pid == -1) {
-        printf("Fatal error.");
-        exit(0);
-    } else if (pid == 0) {
-        //        sleep(2);
-        //        postRequest(argv, pid);
-        
-        getResponse(timeout, pids);
-    } else {
-        //        getResponse(timeout);
-        
-        sleep(2);
+//    pid = fork();
+//    if (pid == -1) {
+//        printf("Fatal error.");
+//        exit(0);
+//    } else if (pid == 0) {
+//        sleep(2);
         postRequest(argv, pids);
         
-        int returnStatus;
-        waitpid(-1, &returnStatus, 0);
-    }
+        //        getResponse(timeout, pids);
+//    } else {
+        getResponse(timeout, pids);
+        
+        //        sleep(2);
+        //        postRequest(argv, pids);
+        //
+        //        int returnStatus;
+        //        waitpid(-1, &returnStatus, 0);
+//    }
     
     sleep(1);
     
-//
-//    char message[50] = "7 8 9 10 11";
-//    char message2[50] = "29 99 101 102 9103";
-//
-//    char message3[50] = "7 8 9 10 11";
-//    char message4[50] = "29 99 101 102 9103";
-//    writeLog(pids, 5, message, message2);
-//
-//    writeLog(pids, 3, message3, message4);
-//    writeLog(pids, -1, NULL, NULL);
-//    writeLog(pids, -2, NULL, NULL);
-//    writeLog(pids, -3, NULL, NULL);
-//    writeLog(pids, -4, NULL, NULL);
-//    writeLog(pids, -5, NULL, NULL);
-//    writeLog(pids, -6, NULL, NULL);
+    //
+    //    char message[50] = "7 8 9 10 11";
+    //    char message2[50] = "29 99 101 102 9103";
+    //
+    //    char message3[50] = "7 8 9 10 11";
+    //    char message4[50] = "29 99 101 102 9103";
+    //    writeLog(pids, 5, message, message2);
+    //
+    //    writeLog(pids, 3, message3, message4);
+    //    writeLog(pids, -1, NULL, NULL);
+    //    writeLog(pids, -2, NULL, NULL);
+    //    writeLog(pids, -3, NULL, NULL);
+    //    writeLog(pids, -4, NULL, NULL);
+    //    writeLog(pids, -5, NULL, NULL);
+    //    writeLog(pids, -6, NULL, NULL);
     
     
     
@@ -157,7 +157,7 @@ void writeLog(pid_t pid, int reservedSeats, char *seats, char* ids) {
 }
 
 void getResponse(int timeout, pid_t pid) {
-    char  fifoName[10];
+    char fifoName[10];
     int fdAnswers;
     char response[200];
     time_t base = time (0);
@@ -167,49 +167,51 @@ void getResponse(int timeout, pid_t pid) {
     mkfifo(fifoName, 0660);
     fdAnswers = open(fifoName, O_RDONLY);
     
+    printf("[CLIENT %d]: waiting for response\n", pid);
+    
     while(readline(fdAnswers, response) && ((time(0) - base) < (timeout+2))) {
         printf("RESPONSE: %s", response);
         parseResponse(response, pid);
     }
     
     close(fdAnswers);
-    printf("ended timeout.");
-//    exit(0);
+    printf("ended timeout");
+    unlink(fifoName);
+    
+    exit(0);
 }
 
 void parseResponse(char *response, pid_t pid) {
     char *part;
     int id;
     int aux;
-    printf("RESPONSE BEFORE PARSE: %s", response);
+    printf("RESPONSE BEFORE PARSE: %s\n", response);
     
     part = strtok (response, " ");
     id = atoi(part);
     
-    
-    
     if (id < 0) {
-//        writeLog(pid, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
+        //        writeLog(pid, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
         
         printf("\n");
         if (id == -1) {
             part = strtok(NULL, " ");
             aux = atoi(part);
-    
-            printf("The number of desired seats is greater than the max allowed. (%d)", aux);
+            
+            printf("The number of desired seats is greater than the max allowed. (%d)\n", aux);
         } else if (id == -2) {
-            printf("The number of id's of the desired seats aren't valid.");
+            printf("The number of id's of the desired seats aren't valid.\n");
         } else if (id == -3) {
-            printf("The id of the desired seats aren't valid.");
+            printf("The id of the desired seats aren't valid.\n");
         } else if (id == -4) {
-            printf("Error in the parameters.");
+            printf("Error in the parameters.\n");
         } else if (id == -5) {
-            printf("At least one of the desired seats is not available.");
+            printf("At least one of the desired seats is not available.\n");
         } else if (id == -6) {
-            printf("The room is full.");
+            printf("The room is full.\n");
         }
     } else {
-//        part = strtok(NULL, " ");
+        //        part = strtok(NULL, " ");
         aux = atoi(part);
         printf("%d", aux);
     }
@@ -235,7 +237,11 @@ void postRequest(char *argv[], pid_t pid) {
     strcat(message, argv[3]);
     
     messagelen = strlen(message) + 1;
+    
+    
     write(fdRequest, message, messagelen);
+    printf("[CLIENT %d]: successfully sent request\n", pid);
+    getResponse(120, pid);
     
     exit(0);
 }
