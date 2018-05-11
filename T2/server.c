@@ -15,8 +15,10 @@
 #include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 // Defined constants
+#define SHARED 0                        // semaphore is shared between threads
 #define MAX_MSG_LEN 100
 #define MAX_CLI_SEATS 10
 
@@ -29,23 +31,28 @@
 #define FULL_ROOM                "-6"   // The room is full
 
 // Global variables
-int num_room_seats;                 // Number of seats
-int num_tickets_offices;            // Number of ticket offices (threads)
-unsigned long int open_time;        // ticket offices open time (seconds)
-int *seats;                         // Seats
-
+int num_room_seats;                     // Number of seats
+int num_tickets_offices;                // Number of ticket offices (threads)
+unsigned long int open_time;            // ticket offices open time (seconds)
+int *seats;                             // Seats
 typedef struct{
-    int client;
-    int num_wanted_seats;
-    int *preferred_seats;
+    int client;                         // store the PID of the client
+    int num_wanted_seats;               // store the number of wanted seats
+    int *preferred_seats;               // store a list of preferred seats
 } requests;
+requests *rq_buffer;                     // Shared buffer
+pthread_mutex_t rqt_mut = PTHREAD_MUTEX_INITIALIZER;    // Initialize the request mutex
+pthread_mutex_t seats_mut = PTHREAD_MUTEX_INITIALIZER;  // Initialize the seats mutex
+pthread_cond_t cvar = PTHREAD_COND_INITIALIZER;         // Initialize the conditional variable
+
 
 // Functions
 int get_number_size(size_t number);
 char* getClientFIFO(int pid);
 requests* requestDisassembler(char* request);
-void *requestHandler(void *request);
-int validateRequest(int *seats, requests *request, int fd);
+// void *requestHandler(void *request);
+void *requestHandler(void *arg);
+int validateRequest(int *seats, requests *request);
 int isSeatFree(int *seats, int seatNum);
 void bookSeat(int *seats, int seatNum, int clientId);
 void freeSeat(int *seats, int seatNum);
@@ -53,10 +60,11 @@ void freeSeat(int *seats, int seatNum);
 
 // MAIN
 int main(int argc, char const *argv[]) {
-    int fd;         // File Descriptor
-    char request[MAX_MSG_LEN+1];
-    requests *rq;
-
+    int fd,                             // File Descriptor
+        *tnum;                          // Thread numbers
+    char request[MAX_MSG_LEN+1];        // string formatted request
+    requests *rq;                       // structured formatted request
+    pthread_t *tids;                    // Thread ids
 
     // Usage
     if(argc != 4){
@@ -71,6 +79,11 @@ int main(int argc, char const *argv[]) {
     open_time = strtol(argv[3], NULL, 10);
     seats = malloc(num_room_seats * sizeof(int));
     memset(seats, 0, num_room_seats * sizeof(int));
+    rq_buffer = NULL;
+
+    // Allocate memory for thread ids and numbers
+    tids = (pthread_t*)malloc(num_tickets_offices * sizeof(pthread_t));
+    tnum = (int*)malloc(num_tickets_offices * sizeof(int));
 
     // Make FIFO 'ŕequests'
     printf("[MAIN]: Attempting to create FIFO 'requests'\n");
@@ -93,24 +106,48 @@ int main(int argc, char const *argv[]) {
     }
     printf("[MAIN]: successfuly opened FIFO 'requests'\n");
 
+    // Create num_tickets_offices threads
+    printf("[MAIN]: Creating %d ticket offices\n", num_tickets_offices);
+    for(int i = 0; i < num_tickets_offices; i++){
+        tnum[i] = i+1;
+        if(pthread_create(&tids[i], NULL, requestHandler, &tnum[i])){
+            printf("[MAIN]: Error creating thread %d\n", i+1);
+            exit(1);
+        }
+    }
+    printf("[MAIN]: Created %d ticket offices\n", num_tickets_offices);
+
     printf("[MAIN]: Ready to recieve requests\n");
     // Receive requests
     while (1) {
         if(read(fd, request, MAX_MSG_LEN) > 0){
             printf("recieved request: %s\n", request);
             rq = requestDisassembler(request);
-            requestHandler(rq);
+            //requestHandler(rq);
+            rq_buffer = rq;
+            pthread_cond_broadcast(&cvar);
         }
     }
 
     // Close FIFO 'requests'
+    printf("[MAIN]: Cloing FIFO 'requests'\n");
     close(fd);
+    printf("[MAIN]: FIFO 'requests' closed\n");
 
     // Destroy FIFO 'requests'
+    printf("[MAIN]: Destroying FIFO 'requests'\n");
     if(unlink("requests") < 0)
         fprintf(stderr, "[MAIN]: Error destroying FIFO 'requests'\n");
     else
-        fprintf(stdout, "[MAIN]: FIFO 'requests' has been destroyed\n");
+        printf("[MAIN]: Destroyied FIFO 'requests'\n");
+
+    // Terminate threads
+    printf("[MAIN]: Terminating %d ticket offices\n", num_tickets_offices);
+    for (int i = 0; i < num_tickets_offices; i++) {
+        pthread_cancel(tids[i]);
+        pthread_join(tids[i], NULL);
+    }
+    printf("[MAIN]: Terminated %d ticket offices\n", num_tickets_offices);
 
     // Exit program successfuly
     exit(0);
@@ -123,18 +160,18 @@ requests* requestDisassembler(char* request){
     int i = 0;
 
     // get client PID
-    printf("[REQUEST HANDLER]: extracting Client PID from request\n");
+    printf("[REQUEST DISASSEMBLER]: extracting Client PID from request\n");
     token = strtok(request, delim);
     rq->client = strtol(token, NULL, 10);
-    printf("[REQUEST HANDLER]: extracted Client PID from request\n");
+    printf("[REQUEST DISASSEMBLER]: extracted Client PID from request\n");
 
-    printf("[REQUEST HANDLER]: extracting Client desired number of seats from request\n");
+    printf("[REQUEST DISASSEMBLER]: extracting Client desired number of seats from request\n");
     // get client desired number of seats
     token = strtok(NULL, delim);
     rq->num_wanted_seats = strtol(token, NULL, 10);
-    printf("[REQUEST HANDLER]: extracted Client desired number of seats from request\n");
+    printf("[REQUEST DISASSEMBLER]: extracted Client desired number of seats from request\n");
 
-    printf("[REQUEST HANDLER]: extracting Client desired seats from request\n");
+    printf("[REQUEST DISASSEMBLER]: extracting Client desired seats from request\n");
     // get the desired seats
     rq->preferred_seats = NULL;
     token = strtok(NULL, delim);
@@ -145,7 +182,7 @@ requests* requestDisassembler(char* request){
     }
     rq->preferred_seats = realloc(rq->preferred_seats, ++i * sizeof(int));
     rq->preferred_seats[i-1] = -1;
-    printf("[REQUEST HANDLER]: extracted Client desired number of seats from request\n");
+    printf("[REQUEST DISASSEMBLER]: extracted Client desired number of seats from request\n");
 
     printf("Cliente: %d\n", rq->client);
     printf("Num seats: %d\n", rq->num_wanted_seats);
@@ -158,75 +195,74 @@ requests* requestDisassembler(char* request){
     return rq;
 }
 
-void *requestHandler(void *request){
-    requests *rq = (requests*)request;
-    pthread_t tid = pthread_self();
-    int num_preferred_seats = 0,
-        fd;
-    char *fifo = getClientFIFO(rq->client),
-         msg[MAX_MSG_LEN];
+// void *requestHandler(void *request){
+//     requests *rq = (requests*)request;
+//     pthread_t tid = pthread_self();
+//     int num_preferred_seats = 0,
+//         fd;
+//     char *fifo = getClientFIFO(rq->client),
+//          msg[MAX_MSG_LEN];
+//
+//     if((fd = open(fifo, O_WRONLY)) < 0){
+//         fprintf(stderr, "[TICKET OFFICE %ld]: Error opening FIFO '%s'\n", tid, fifo);
+//         return NULL;
+//     }
+//
+//     // Validate request
+//     if(validateRequest(seats, rq)){
+//
+//         for (int i = 0; rq->preferred_seats[i] != -1; i++) {
+//             num_preferred_seats++;
+//         }
+//
+//         // Reservate seats
+//         for (int i = 0; i < num_preferred_seats && rq->num_wanted_seats; i++) {
+//             if(isSeatFree(seats, rq->preferred_seats[i])){
+//                 bookSeat(seats, rq->preferred_seats[i], rq->client);
+//                 printf("[TICKET OFFICE %ld]: Seat %d booked\n", tid, rq->preferred_seats[i] + 1);
+//                 rq->num_wanted_seats--;
+//             }
+//             else{
+//                 printf("[TICKET OFFICE %ld]: Seat %d already taken\n", tid, rq->preferred_seats[i] + 1);
+//                 rq->preferred_seats[i] = -1;
+//             }
+//         }
+//
+//
+//         if(rq->num_wanted_seats){   // Could not reservate the total number of desired seats
+//             printf("[TICKET OFFICE %ld]: Could not book the total number of seats desired. Rolling back booking operation\n", tid);
+//             write(fd, BOOKING_FAILED, sizeof(BOOKING_FAILED));
+//             // Rollback operation
+//             for (int i = 0; i < num_preferred_seats; i++) {
+//                 if (rq->preferred_seats[i] != -1) {
+//                     freeSeat(seats, rq->preferred_seats[i]);
+//                 }
+//             }
+//         }
+//         else{   // successfuly reservated all desired seats
+//             printf("[TICKET OFFICE %ld]: successfuly booked seats", tid);
+//             sprintf(msg, "%d", rq->num_wanted_seats);
+//
+//             for (int i = 0, j = 1; i < num_preferred_seats; i++, j+=2) {
+//                 if (rq->preferred_seats[i] != -1) {
+//                     printf(" %d", rq->preferred_seats[i] + 1);
+//
+//                     sprintf(&msg[j], " %d", rq->preferred_seats[i] + 1);
+//                 }
+//             }
+//
+//             write(fd, msg, sizeof(msg));
+//         }
+//
+//         printf("\n");
+//     }
+//
+//     return NULL;
+// }
 
-    if((fd = open(fifo, O_WRONLY)) < 0){
-        fprintf(stderr, "[TICKET OFFICE %ld]: Error opening FIFO '%s'\n", tid, fifo);
-        return NULL;
-    }
-
-    // Validate request
-    if(validateRequest(seats, rq, fd)){
-
-        for (int i = 0; rq->preferred_seats[i] != -1; i++) {
-            num_preferred_seats++;
-        }
-
-        // Reservate seats
-        for (int i = 0; i < num_preferred_seats && rq->num_wanted_seats; i++) {
-            if(isSeatFree(seats, rq->preferred_seats[i])){
-                bookSeat(seats, rq->preferred_seats[i], rq->client);
-                printf("[TICKET OFFICE %ld]: Seat %d booked\n", tid, rq->preferred_seats[i] + 1);
-                rq->num_wanted_seats--;
-            }
-            else{
-                printf("[TICKET OFFICE %ld]: Seat %d already taken\n", tid, rq->preferred_seats[i] + 1);
-                rq->preferred_seats[i] = -1;
-            }
-        }
-
-
-        if(rq->num_wanted_seats){   // Could not reservate the total number of desired seats
-            printf("[TICKET OFFICE %ld]: Could not book the total number of seats desired. Rolling back booking operation\n", tid);
-            write(fd, BOOKING_FAILED, sizeof(BOOKING_FAILED));
-            // Rollback operation
-            for (int i = 0; i < num_preferred_seats; i++) {
-                if (rq->preferred_seats[i] != -1) {
-                    freeSeat(seats, rq->preferred_seats[i]);
-                }
-            }
-        }
-        else{   // successfuly reservated all desired seats
-            printf("[TICKET OFFICE %ld]: successfuly booked seats", tid);
-            sprintf(msg, "%d", rq->num_wanted_seats);
-
-            for (int i = 0, j = 1; i < num_preferred_seats; i++, j+=2) {
-                if (rq->preferred_seats[i] != -1) {
-                    printf(" %d", rq->preferred_seats[i] + 1);
-
-                    sprintf(&msg[j], " %d", rq->preferred_seats[i] + 1);
-                }
-            }
-
-            write(fd, msg, sizeof(msg));
-        }
-
-        printf("\n");
-    }
-
-    return NULL;
-}
-
-int validateRequest(int *seats, requests *request, int fd){
+int validateRequest(int *seats, requests *request){
     int room_full = 1,
         num_preferred_seats = 0;
-    pthread_t tid = pthread_self();
 
     // Check if room is full
     for (int i = 0; i < num_room_seats; i++) {
@@ -235,16 +271,12 @@ int validateRequest(int *seats, requests *request, int fd){
         }
     }
     if(room_full){
-        fprintf(stderr, "[TICKET OFFICE %ld]: Room is full\n", tid);
-        write(fd, FULL_ROOM, sizeof(FULL_ROOM));
-        return 0;
+        return -6;
     }
 
     // Check if desired number of seats if valid
     if(request->num_wanted_seats > MAX_CLI_SEATS){
-        fprintf(stderr, "[TICKET OFFICE %ld]: Number of seats wanted higher than permited (%d)\n", tid, MAX_CLI_SEATS-1);
-        write(fd, INVALID_NUM_SEAT, sizeof(INVALID_NUM_SEAT));
-        return 0;
+        return -1;
     }
 
     // Get number of preferred seats specified
@@ -253,33 +285,29 @@ int validateRequest(int *seats, requests *request, int fd){
     }
     // Check if number of preferred seats is valid
     if(num_preferred_seats < request->num_wanted_seats){
-        fprintf(stderr, "[TICKET OFFICE %ld]: Number of preferred seats (%d) smaller than number of wanted seats (%d)\n", tid, num_preferred_seats, request->num_wanted_seats);
-        write(fd, INVALID_NUM_PREF_SEAT, sizeof(INVALID_NUM_PREF_SEAT));
-        return 0;
+        return -2;
     }
     if(num_preferred_seats > MAX_CLI_SEATS){
-        fprintf(stderr, "[TICKET OFFICE %ld]: Number of preferred seats bigger than permited (%d)\n", tid, MAX_CLI_SEATS-1);
-        write(fd, INVALID_NUM_PREF_SEAT, sizeof(INVALID_NUM_PREF_SEAT));
-        return 0;
+        return -2;
     }
 
     // Check if preferred seats are valid
     for (int i = 0; i < num_preferred_seats; i++) {
         if(request->preferred_seats[i] >= num_room_seats || request->preferred_seats[i] < 0){
-            fprintf(stderr, "[TICKET OFFICE %ld]: Preferred seat %d do not exist\n", tid, request->preferred_seats[i] + 1);
-            write(fd, INVALID_SEAT_ID, sizeof(INVALID_SEAT_ID));
-            return 0;
+            return -3;
         }
     }
 
-    return 1;
+    return 0;
 }
 
 int isSeatFree(int *seats, int seatNum){
-    if(seats[seatNum])
+    if(seats[seatNum]){
         return 0;
-    else
+    }
+    else{
         return 1;
+    }
 }
 
 void bookSeat(int *seats, int seatNum, int clientId){
@@ -305,4 +333,115 @@ char* getClientFIFO(int pid){
     sprintf(fifo, "ans%d", pid);
 
     return fifo;
+}
+
+void *requestHandler(void *tid){
+    requests *rq;
+    int err = 0,
+        fd,
+        num_preferred_seats = 0,
+        tnum = *(int*)tid;
+    char *fifo,
+         msg[MAX_MSG_LEN];
+
+    while(1){
+        pthread_mutex_lock(&rqt_mut);
+        while(rq_buffer == NULL){
+            pthread_cond_wait(&cvar, &rqt_mut);
+        }
+        rq = rq_buffer;
+        rq_buffer = NULL;
+
+        fifo = malloc(sizeof("ans") + get_number_size(rq->client) + 1);
+
+        // Get client dedicated fifo name
+        if(sprintf(fifo, "ans%d", rq->client) < 0){
+            printf("[TICKER OFFICE %d]: Error geting client %d FIFO name\n", tnum, rq->client);
+            pthread_mutex_unlock(&rqt_mut);
+            continue;
+        }
+
+        // Open client dedicated fifo
+        if((fd = open(fifo, O_WRONLY | O_NONBLOCK)) < 0){
+            printf("[TICKET OFFICE %d]: FIFO '%s' not open\n", tnum, fifo);
+            pthread_mutex_unlock(&rqt_mut);
+            continue;
+        }
+
+        // Handle request
+        if((err = validateRequest(seats, rq)) == 0){
+            for (int i = 0; rq->preferred_seats[i] != -1; i++) {
+                num_preferred_seats++;
+            }
+
+
+            // Reservate seats
+            for (int i = 0; i < num_preferred_seats && rq->num_wanted_seats; i++) {
+                pthread_mutex_lock(&seats_mut);
+                if(isSeatFree(seats, rq->preferred_seats[i])){
+                    bookSeat(seats, rq->preferred_seats[i], rq->client);
+                    printf("[TICKET OFFICE %d]: Seat %d booked\n", tnum, rq->preferred_seats[i] + 1);
+                    rq->num_wanted_seats--;
+                }
+                else{
+                    printf("[TICKET OFFICE %d]: Seat %d already taken\n", tnum, rq->preferred_seats[i] + 1);
+                    rq->preferred_seats[i] = -1;
+                }
+                pthread_mutex_unlock(&seats_mut);
+
+            }
+
+
+            if(rq->num_wanted_seats){   // Could not reservate the total number of desired seats
+                printf("[TICKET OFFICE %d]: Could not book the total number of seats desired. Rolling back booking operation\n", tnum);
+                write(fd, BOOKING_FAILED, sizeof(BOOKING_FAILED));
+                // Rollback operation
+                pthread_mutex_lock(&seats_mut);
+                for (int i = 0; i < num_preferred_seats; i++) {
+                    if (rq->preferred_seats[i] != -1) {
+                        freeSeat(seats, rq->preferred_seats[i]);
+                    }
+                }
+                pthread_mutex_unlock(&seats_mut);
+            }
+            else{   // successfuly reservated all desired seats
+                printf("[TICKET OFFICE %d]: successfuly booked seats", tnum);
+                sprintf(msg, "%d", rq->num_wanted_seats);
+
+                for (int i = 0, j = 1; i < num_preferred_seats; i++, j+=2) {
+                    if (rq->preferred_seats[i] != -1) {
+                        printf(" %d", rq->preferred_seats[i] + 1);
+
+                        sprintf(&msg[j], " %d", rq->preferred_seats[i] + 1);
+                    }
+                }
+
+                write(fd, msg, sizeof(msg));
+            }
+
+            printf("\n");
+        }
+        else if(err == -1){
+            // Number of wanted seats higher than permited
+            write(fd, INVALID_NUM_SEAT, sizeof(INVALID_NUM_SEAT));
+            fprintf(stderr, "[TICKET OFFICE %d]: Number of seats wanted higher than permited\n", tnum);
+        }
+        else if(err == -2){
+            // Number of preferred seats invalid
+            write(fd, INVALID_NUM_PREF_SEAT, sizeof(INVALID_NUM_PREF_SEAT));
+            fprintf(stderr, "[TICKET OFFICE %d]: Number of preferred seats is invalid\n", tnum);
+        }
+        else if(err == -3){
+            // One or more of the preferred seats id is invalid
+            write(fd, INVALID_SEAT_ID, sizeof(INVALID_SEAT_ID));
+            fprintf(stderr, "[TICKET OFFICE %d]: One of more of the preferred seats id is invalid\n", tnum);
+        }
+        else if(err == -6){
+            // Room is full
+            write(fd, FULL_ROOM, sizeof(FULL_ROOM));
+            fprintf(stderr, "[TICKET OFFICE %d]: Room is full\n", tnum);
+        }
+
+        pthread_mutex_unlock(&rqt_mut);
+    }
 }
