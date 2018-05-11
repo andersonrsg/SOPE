@@ -339,7 +339,7 @@ void *requestHandler(void *tid){
     requests *rq;
     int err = 0,
         fd,
-        num_preferred_seats = 0,
+        num_preferred_seats,
         tnum = *(int*)tid;
     char *fifo,
          msg[MAX_MSG_LEN];
@@ -370,6 +370,7 @@ void *requestHandler(void *tid){
 
         // Handle request
         if((err = validateRequest(seats, rq)) == 0){
+            num_preferred_seats = 0;
             for (int i = 0; rq->preferred_seats[i] != -1; i++) {
                 num_preferred_seats++;
             }
@@ -443,5 +444,5 @@ void *requestHandler(void *tid){
         }
 
         pthread_mutex_unlock(&rqt_mut);
-    }
+        }
 }
