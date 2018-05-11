@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <pthread.h>
+#include <signal.h>
 
 #define WIDTH_PID "5"
 #define WIDTH_XX "2"
@@ -19,13 +20,16 @@ struct response {
     int pid;
 };
 
-void *postRequest(char *argv[], pid_t pid);
+void *postRequest(char *argv[], pid_t pid, int timeout);
 //void getResponse(int timeout, pid_t pid);
 void *getResponse(void *arg);
 int readline(int fd, char *str);
 void parseResponse(char *response, pid_t pid);
 void writeLog(pid_t pid, int reservedSeats, char *seats);
+void alarmHandler(int signum);
 
+int timeNotOver = 1;
+int signums = 0;
 
 int main(int argc, char *argv[]) {
     pid_t pids = getpid();
@@ -52,7 +56,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
-    postRequest(argv, pids);
+    postRequest(argv, pids, timeout);
     
     
     sleep(1);
@@ -74,6 +78,9 @@ int main(int argc, char *argv[]) {
     //    writeLog(pids, -6, NULL, NULL);
     
     
+
+    
+    pthread_join(tresponse, NULL);
     printf("[CLIENT %d]: finished execution\n", pids);
     return 0;
 }
@@ -159,7 +166,7 @@ void *getResponse(void *arg) {
     mkfifo(fifoName, 0660);
     fdAnswers = open(fifoName, O_RDONLY);
     
-    while(readline(fdAnswers, response) && ((time(0) - base) < (param->timeout+2))) {
+    while(readline(fdAnswers, response) && timeNotOver == 1) {
 //        printf("RESPONSE: %s\n", response);
         parseResponse(response, param->pid);
     }
@@ -183,7 +190,7 @@ void parseResponse(char *response, pid_t pid) {
     
     if (id == 0) {
         sleep(1);
-        printf("[CLIENT %d]: error in server response.\n", pid);
+        printf("[CLIENT %d]: error in server response\n", pid);
     } else if (id < 0) {
         //        writeLog(pid, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
         
@@ -213,7 +220,7 @@ void parseResponse(char *response, pid_t pid) {
 
 
 // Processo para realizar a requisição
-void *postRequest(char *argv[], pid_t pid) {
+void *postRequest(char *argv[], pid_t pid, int timeout) {
     sleep(3);
     int fdRequest;
     char message[200];
@@ -238,6 +245,13 @@ void *postRequest(char *argv[], pid_t pid) {
     printf("[CLIENT %d]: successfully sent request\n", pid);
     sleep(1);
     printf("[CLIENT %d]: waiting for response\n", pid);
+    printf("[CLIENT %d]: max wait time: %d seconds\n", pid, timeout);
+    signal(SIGALRM, alarmHandler);
+    
+    // Set alarm to signal after <timeout> seconds
+    if(alarm(timeout)){
+        exit(1);
+    }
     
     return NULL;
 }
@@ -249,4 +263,10 @@ int readline(int fd, char *str)
         n = read(fd,str,1);
     } while (n>0 && *str++ != '\0');
     return (n>0);
+}
+
+void alarmHandler(int signum) {
+    timeNotOver = 0;
+    signums = signum;
+    printf("[MAIN]: Closing time!\n");
 }
