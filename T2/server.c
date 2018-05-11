@@ -364,7 +364,8 @@ void *requestHandler(void *tid){
         num_preferred_seats,
         num_wanted_seats,
         *preferred_seats,
-        tnum = *(int*)tid;
+        tnum = *(int*)tid,
+        attempts = 3;
     char *fifo,
          msg[MAX_MSG_LEN];
 
@@ -385,8 +386,13 @@ void *requestHandler(void *tid){
             continue;
         }
 
-        // Open client dedicated fifo
-        if((fd = open(fifo, O_WRONLY | O_NONBLOCK)) < 0){
+        // Open client dedicated fifo (3 attempts)
+        while (attempts--) {
+            if((fd = open(fifo, O_WRONLY | O_NONBLOCK)) > 0){
+                break;
+            }
+        }
+        if(!attempts){
             printf("[TICKET OFFICE %d]: FIFO '%s' not open\n", tnum, fifo);
             pthread_mutex_unlock(&rqt_mut);
             continue;
