@@ -53,6 +53,9 @@ int main(int argc, char *argv[]) {
         
         sleep(2);
         postRequest(argv, pids);
+        
+        int returnStatus;
+        waitpid(-1, &returnStatus, 0);
     }
     
     sleep(1);
@@ -171,18 +174,19 @@ void getResponse(int timeout, pid_t pid) {
     
     close(fdAnswers);
     printf("ended timeout.");
-    exit(0);
+//    exit(0);
 }
 
 void parseResponse(char *response, pid_t pid) {
     char *part;
     int id;
     int aux;
+    printf("RESPONSE BEFORE PARSE: %s", response);
     
     part = strtok (response, " ");
     id = atoi(part);
     
-    printf("RESPONSE BEFORE PARSE: %s", response);
+    
     
     if (id < 0) {
 //        writeLog(pid, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
