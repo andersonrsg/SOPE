@@ -109,10 +109,10 @@ void writeLog(pid_t pid, int reservedSeats, char *seats) {
 
     printf("reserved %d\n",reservedSeats);
     printf("seats %s\n", seats);
-    currSeat = strtok(seats, " ");
+    
     if (reservedSeats > 0) {
         
-        
+        currSeat = strtok(seats, " ");
         for (int i = 0; i < reservedSeats; i++) {
             currSeat = strtok(NULL, " ");
             
@@ -146,7 +146,7 @@ void writeLog(pid_t pid, int reservedSeats, char *seats) {
         } else if (reservedSeats == -6) {
             sprintf(errorMessage, "FUL");
         }
-        
+    
         snprintf(message, sizeof message, "%05d %s\n", pid, errorMessage);
         
         write(fd, message, strlen(message));
@@ -199,24 +199,26 @@ void parseResponse(char *response, pid_t pid) {
         sleep(1);
         printf("[CLIENT %d]: error in server response\n", pid);
     } else if (id < 0) {
-        //        writeLog(pid, <#int reservedSeats#>, <#char *seat#>, <#char *id#>)
         
         printf("\n");
         if (id == -1) {
             part = strtok(NULL, " ");
 //            aux = atoi(part);
-            printf("The number of desired seats is greater than the max allowed. (%d)\n", id);
+            printf("[CLIENT %d]: the number of desired seats is greater than the max allowed. (%d)\n", pid, id);
         } else if (id == -2) {
-            printf("The number of id's of the desired seats aren't valid.\n");
+            printf("[CLIENT %d]: The number of id's of the desired seats aren't valid.\n", pid);
         } else if (id == -3) {
-            printf("The id of the desired seats aren't valid.\n");
+            printf("[CLIENT %d]: The id of the desired seats aren't valid.\n", pid);
         } else if (id == -4) {
-            printf("Error in the parameters.\n");
+            printf("[CLIENT %d]: Error in the parameters.\n", pid);
         } else if (id == -5) {
-            printf("At least one of the desired seats is not available.\n");
+            printf("[CLIENT %d]: At least one of the desired seats is not available.\n", pid);
         } else if (id == -6) {
-            printf("The room is full.\n");
+            printf("[CLIENT %d]: The room is full.\n", pid );
         }
+        
+        writeLog(pid, id, NULL);
+        
         exit(0);
     } else {
         //    char message3[50] = "7 8 9 10 11";
@@ -234,7 +236,6 @@ void *postRequest(char *argv[], pid_t pid, int timeout) {
     int fdRequest;
     char message[200];
     int messagelen;
-    char *part;
     
     do {
         fdRequest = open("requests", O_WRONLY);
