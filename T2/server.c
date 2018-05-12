@@ -32,7 +32,7 @@
 #define FULL_ROOM                "-6"   // The room is full
 
 // Defined function-like macros
-#define DELAY(sec)          sleep(sec)  // Simulate the existence of some delay
+#define DELAY(usec)       usleep(usec)  // Simulate the existence of some delay
 
 // Global variables
 int num_room_seats;                     // Number of seats
