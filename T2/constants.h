@@ -10,11 +10,11 @@
 #define SV_BOOK_NAME    "sbook.txt"     // Server bookings file name
 
 // Defined Error constants
-#define MAX                    "-1"     // Number of desired seats is higher than permited
-#define NST                    "-2"     // Number of preferred seats is inval
-#define IID                    "-3"     // At least one preferred seat id is invalid
-#define ERR                    "-4"     // Any other parameter error
-#define NAV                    "-5"     // Number of desired seats not available
-#define FUL                    "-6"     // The room is full
+#define MAX                    -1     // Number of desired seats is higher than permited
+#define NST                    -2     // Number of preferred seats is inval
+#define IID                    -3     // At least one preferred seat id is invalid
+#define ERR                    -4     // Any other parameter error
+#define NAV                    -5     // Number of desired seats not available
+#define FUL                    -6     // The room is full
 
 #endif 

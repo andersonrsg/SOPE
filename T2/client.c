@@ -121,9 +121,9 @@ void writeLog(pid_t pid, int reservedSeats, char *seats) {
     } else {
         
         char errorMessage[4];
-        if (reservedSeats == -1) {
+        if (reservedSeats == MAX) {
             sprintf(errorMessage, "MAX");
-        } else if (reservedSeats == -2) {
+        } else if (reservedSeats == NST) {
             sprintf(errorMessage, "NST");
         } else if (reservedSeats == -3) {
             sprintf(errorMessage, "IID");
