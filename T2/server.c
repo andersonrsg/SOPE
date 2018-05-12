@@ -93,10 +93,10 @@ int main(int argc, char const *argv[]) {
     }
 
     // Transform argv to string
-    args = (char*)malloc(sizeof(argv[0]));
+    args = malloc(sizeof(argv[0]) + 1);
     strcpy(args, argv[0]);
     for (int i = 1; i < argc; i++) {
-        args = (char*)realloc(args, sizeof(args) + sizeof(argv[i]));
+        args = realloc(args, sizeof(args) + sizeof(argv[i]) + 1);
         strcat(args, " ");
         strcat(args, argv[i]);
     }
@@ -107,9 +107,10 @@ int main(int argc, char const *argv[]) {
         exit(1);
     }
     regfree(&reg);
+    free(args);
 
-    printf("[MAIN]: Setting global parameters\n");
     // Set global variables
+    printf("[MAIN]: Setting global parameters\n");
     num_room_seats = strtol(argv[1], NULL, 10);
     num_tickets_offices = strtol(argv[2], NULL, 10);
     open_time = strtol(argv[3], NULL, 10);
@@ -127,17 +128,13 @@ int main(int argc, char const *argv[]) {
     }
     printf("[MAIN]: Opened server logging file\n");
 
-    // Allocate memory for thread ids and numbers
-    tids = (pthread_t*)malloc(num_tickets_offices * sizeof(pthread_t));
-    tnum = (int*)malloc(num_tickets_offices * sizeof(int));
-
     // Make FIFO 'ŕequests'
     printf("[MAIN]: Attempting to create FIFO 'requests'\n");
     if(mkfifo("requests", 0660) == 0){
         printf("[MAIN]: FIFO 'requests' created successfuly\n");
     }
     else{
-        if(errno == EEXIST) fprintf(stderr, "[MAIN]: FIFO 'requests' already exists\n");
+        if(errno == EEXIST) printf("[MAIN]: FIFO 'requests' already exists\n");
         else {
             fprintf(stderr, "[MAIN]: Can't create FIFO 'requests'\n");
             exit(1);
@@ -152,6 +149,10 @@ int main(int argc, char const *argv[]) {
     }
     printf("[MAIN]: successfuly opened FIFO 'requests'\n");
 
+    // Allocate memory for thread ids and numbers
+    tids = malloc(num_tickets_offices * sizeof(pthread_t));
+    tnum = malloc(num_tickets_offices * sizeof(int));
+
     // Create num_tickets_offices threads
     printf("[MAIN]: Creating %d ticket offices\n", num_tickets_offices);
     for(int i = 0; i < num_tickets_offices; i++){
@@ -161,6 +162,7 @@ int main(int argc, char const *argv[]) {
             exit(1);
         }
     }
+    free(tnum);
     printf("[MAIN]: Created %d ticket offices\n", num_tickets_offices);
 
     // Estrablish SIGALRM handler
@@ -182,7 +184,6 @@ int main(int argc, char const *argv[]) {
         if(read(fd, request, MAX_MSG_LEN) > 0){
             printf("received request: %s\n", request);
             rq = requestDisassembler(request);
-            //requestHandler(rq);
             rq_buffer = rq;
             pthread_cond_broadcast(&cvar);
         }
@@ -198,13 +199,12 @@ int main(int argc, char const *argv[]) {
     if(unlink("requests") < 0)
         fprintf(stderr, "[MAIN]: Error destroying FIFO 'requests'\n");
     else
-        printf("[MAIN]: Destroyied FIFO 'requests'\n");
+        printf("[MAIN]: Destroyed FIFO 'requests'\n");
 
     // Terminate threads
     printf("[MAIN]: Terminating %d ticket offices\n", num_tickets_offices);
     for (int i = 0; i < num_tickets_offices; i++) {
         pthread_cancel(tids[i]);
-        // pthread_mutex_unlock(&rqt_mut);
         pthread_join(tids[i], NULL);
     }
     printf("[MAIN]: Terminated %d ticket offices\n", num_tickets_offices);
@@ -215,7 +215,7 @@ int main(int argc, char const *argv[]) {
         fprintf(stderr, "[MAIN]: Error opening server booking file\n");
         exit(1);
     }
-    bkmsg = malloc(MAX_MSG_LEN * sizeof(char));
+    bkmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
     len = 0;
     for (int i = 0; i < num_room_seats; i++) {
         if(seats[i]){
@@ -300,7 +300,7 @@ void *requestHandler(void *tid){
     // Set Cleanup Handler
     pthread_cleanup_push(cleanup_handler, &tnum);
 
-    logmsg = malloc(MAX_MSG_LEN * sizeof(char));
+    logmsg = malloc((MAX_MSG_LEN +1 ) * sizeof(char));
 
     sprintf(logmsg, "%d-OPEN\n", tnum);
     write(sv_log_fd, logmsg, sizeof(logmsg));
@@ -534,7 +534,7 @@ int get_number_lenght(size_t number){
 
 // CLIENT FIFO ASSEMBLER
 char* getClientFIFO(int pid){
-    char* fifo = (char*)malloc(strlen("ans") + get_number_lenght(pid) + 1);
+    char* fifo = (char*)malloc(sizeof("ans") + get_number_lenght(pid) + 1);
 
     sprintf(fifo, "ans%d", pid);
 
@@ -556,7 +556,7 @@ static void cleanup_handler(void *tnum){
     pthread_mutex_unlock(&seats_mut);
     pthread_mutex_unlock(&rqt_mut);
 
-    logmsg = malloc(MAX_MSG_LEN * sizeof(char));
+    logmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
 
     len = sprintf(logmsg, "%d-CLOSE\n", *(int*)tnum);
 
