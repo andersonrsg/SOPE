@@ -4,7 +4,7 @@ RM 		= rm -f
 
 default: all
 
-all: Server Client
+all: Server Client Start
 
 Server: server.c
 	@$(CC) $(CFLAGS) -o server server.c
@@ -12,5 +12,8 @@ Server: server.c
 Client: client.c
 	@$(CC) $(CFLAGS) -o client client.c
 
+Start: start.c
+	@$(CC) $(CFLAGS) -o start start.c
+
 clean:
-	@$(RM) server client
+	@$(RM) server client start
