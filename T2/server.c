@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 // UNIX/Linux libraries
 #include <sys/stat.h>
@@ -54,7 +55,7 @@ pthread_cond_t cvar = PTHREAD_COND_INITIALIZER;         // Initialize the condit
 
 
 // Functions
-int get_number_size(size_t number);                     // Used to get lenght of the number
+int get_number_lenght(size_t number);                   // Used to get lenght of the number
 char* getClientFIFO(int pid);                           // Used to get the name of the client FIFO
 requests* requestDisassembler(char* request);           // Used to build a requests struct from a request string
 void *requestHandler(void *arg);                        // Thread function used to handle the request
@@ -179,7 +180,7 @@ int main(int argc, char const *argv[]) {
     printf("[MAIN]: Ready to recieve requests\n");
     while (keep_going) {
         if(read(fd, request, MAX_MSG_LEN) > 0){
-            printf("recieved request: %s\n", request);
+            printf("received request: %s\n", request);
             rq = requestDisassembler(request);
             //requestHandler(rq);
             rq_buffer = rq;
@@ -230,6 +231,7 @@ int main(int argc, char const *argv[]) {
     exit(0);
 }
 
+// REQUEST DISASSEMBLER
 requests* requestDisassembler(char* request){
     requests *rq = malloc(sizeof(requests));
     char *token,
@@ -237,18 +239,24 @@ requests* requestDisassembler(char* request){
     int i = 0;
 
     // get client PID
-    printf("[REQUEST DISASSEMBLER]: extracting Client PID from request\n");
-    token = strtok(request, delim);
+    printf("[REQUEST DISASSEMBLER]: Extracting Client PID from request\n");
+    if((token = strtok(request, delim)) == NULL){
+        fprintf(stderr, "[REQUEST DISASSEMBLER]: Error extracting Client PID from request\n");
+        return NULL;
+    }
     rq->client = strtol(token, NULL, 10);
-    printf("[REQUEST DISASSEMBLER]: extracted Client PID from request\n");
+    printf("[REQUEST DISASSEMBLER]: Extracted Client PID from request\n");
 
-    printf("[REQUEST DISASSEMBLER]: extracting Client desired number of seats from request\n");
+    printf("[REQUEST DISASSEMBLER]: Extracting Client desired number of seats from request\n");
     // get client desired number of seats
-    token = strtok(NULL, delim);
+    if((token = strtok(NULL, delim)) == NULL){
+        fprintf(stderr, "[REQUEST DISASSEMBLER]: Error extracting Client desired number of seats from request\n");
+        return NULL;
+    }
     rq->num_wanted_seats = strtol(token, NULL, 10);
-    printf("[REQUEST DISASSEMBLER]: extracted Client desired number of seats from request\n");
+    printf("[REQUEST DISASSEMBLER]: Extracted Client desired number of seats from request\n");
 
-    printf("[REQUEST DISASSEMBLER]: extracting Client desired seats from request\n");
+    printf("[REQUEST DISASSEMBLER]: Extracting Client preferred seats from request\n");
     // get the desired seats
     rq->preferred_seats = NULL;
     token = strtok(NULL, delim);
@@ -258,13 +266,13 @@ requests* requestDisassembler(char* request){
         token = strtok(NULL, delim);
     }
     rq->preferred_seats = realloc(rq->preferred_seats, ++i * sizeof(int));
-    rq->preferred_seats[i-1] = -1;
+    rq->preferred_seats[i-1] = INT_MIN;
     printf("[REQUEST DISASSEMBLER]: extracted Client desired number of seats from request\n");
 
     printf("Cliente: %d\n", rq->client);
     printf("Num seats: %d\n", rq->num_wanted_seats);
     printf("desired seats: ");
-    for(int j = 0; rq->preferred_seats[j] != -1; j++){
+    for(int j = 0; rq->preferred_seats[j] != INT_MIN; j++){
         printf("%d ", rq->preferred_seats[j] + 1);
     }
     printf("\n");
@@ -272,6 +280,7 @@ requests* requestDisassembler(char* request){
     return rq;
 }
 
+// REQUEST HANDLER
 void *requestHandler(void *tid){
     requests *rq;
     int err = 0,
@@ -306,9 +315,10 @@ void *requestHandler(void *tid){
         printf("[TICKET OFFICE %d]: Request received\n",tnum );
         rq = rq_buffer;
         rq_buffer = NULL;
+        pthread_mutex_unlock(&rqt_mut);
 
         // Get client dedicated fifo name
-        fifo = malloc(sizeof("ans") + get_number_size(rq->client) + 1);
+        fifo = malloc(sizeof("ans") + get_number_lenght(rq->client) + 1);
         if(sprintf(fifo, "ans%d", rq->client) < 0){
             printf("[TICKER OFFICE %d]: Error geting client %d FIFO name\n", tnum, rq->client);
             pthread_mutex_unlock(&rqt_mut);
@@ -324,13 +334,12 @@ void *requestHandler(void *tid){
         }
         if(!attempts){
             printf("[TICKET OFFICE %d]: FIFO '%s' is not open for read\n", tnum, fifo);
-            pthread_mutex_unlock(&rqt_mut);
             continue;
         }
 
         // Build log message
         len = sprintf(logmsg, "%02d-%d-%02d:", tnum, rq->client, rq->num_wanted_seats);
-        for (int i = 0; rq->preferred_seats[i] != -1; i++) {
+        for (int i = 0; rq->preferred_seats[i] != INT_MIN; i++) {
             len += sprintf(logmsg + len, " %04d", rq->preferred_seats[i] + 1);
         }
         len += sprintf(logmsg+len, " -");
@@ -342,7 +351,7 @@ void *requestHandler(void *tid){
             num_wanted_seats = rq->num_wanted_seats;
             preferred_seats = malloc(sizeof(rq->preferred_seats));
 
-            for (int i = 0; rq->preferred_seats[i] != -1; i++) {
+            for (int i = 0; rq->preferred_seats[i] != INT_MIN; i++) {
                 num_preferred_seats++;
                 preferred_seats[i] = rq->preferred_seats[i];
             }
@@ -383,7 +392,7 @@ void *requestHandler(void *tid){
                 sprintf(msg, "%d", rq->num_wanted_seats);
 
                 for (int i = 0, j = 1; i < num_preferred_seats; i++, j+=2) {
-                    if (rq->preferred_seats[i] != -1) {
+                    if (preferred_seats[i] != -1) {
                         printf(" %d", rq->preferred_seats[i] + 1);
 
                         sprintf(&msg[j], " %d", rq->preferred_seats[i] + 1);
@@ -415,6 +424,12 @@ void *requestHandler(void *tid){
             fprintf(stderr, "[TICKET OFFICE %d]: One of more of the preferred seats id is invalid\n", tnum);
             len += sprintf(logmsg+len, " IID\n");
         }
+        else if(err == -4){
+            // Invalid parameters
+            write(fd, PARAM_ERROR, sizeof(PARAM_ERROR));
+            fprintf(stderr, "[TICKET OFFICE %d]: Invalid parameters\n", tnum);
+            len += sprintf(logmsg+len, " ERR\n");
+        }
         else if(err == -6){
             // Room is full
             write(fd, FULL_ROOM, sizeof(FULL_ROOM));
@@ -423,7 +438,6 @@ void *requestHandler(void *tid){
         }
 
         write(sv_log_fd, logmsg, len);
-        pthread_mutex_unlock(&rqt_mut);
     }
 
     len = sprintf(logmsg, "%d-CLOSE\n", tnum);
@@ -434,6 +448,7 @@ void *requestHandler(void *tid){
     pthread_exit(NULL);
 }
 
+// REQUEST VALIDATOR
 int validateRequest(int *seats, requests *request){
     int room_full = 1,
         num_preferred_seats = 0;
@@ -448,14 +463,26 @@ int validateRequest(int *seats, requests *request){
         return -6;
     }
 
+    // Check if client PID is valid
+    if(request->client < 0){
+        return -4;
+    }
+
     // Check if desired number of seats if valid
+    if(request->num_wanted_seats <= 0){
+        return -4;
+    }
     if(request->num_wanted_seats > MAX_CLI_SEATS){
         return -1;
     }
 
     // Get number of preferred seats specified
-    for (int i = 0; request->preferred_seats[i] != -1; i++) {
+    // and check if any of them is invalid
+    for (int i = 0; request->preferred_seats[i] != INT_MIN; i++) {
         num_preferred_seats++;
+        if(request->preferred_seats[i] < 0){
+            return -4;
+        }
     }
     // Check if number of preferred seats is valid
     if(num_preferred_seats < request->num_wanted_seats){
@@ -475,6 +502,7 @@ int validateRequest(int *seats, requests *request){
     return 0;
 }
 
+// SEAT AVAILABILITY CHECK
 int isSeatFree(int *seats, int seatNum){
     if(seats[seatNum]){
         return 0;
@@ -484,15 +512,18 @@ int isSeatFree(int *seats, int seatNum){
     }
 }
 
+// SEAT BOOKER
 void bookSeat(int *seats, int seatNum, int clientId){
     seats[seatNum] = clientId;
 }
 
+// SEAT UNBOOKER
 void freeSeat(int *seats, int seatNum){
     seats[seatNum] = 0;
 }
 
-int get_number_size(size_t number){
+//  NUMBER LENGHT
+int get_number_lenght(size_t number){
     int i = 0;
     do {
         number /= 10;
@@ -501,20 +532,23 @@ int get_number_size(size_t number){
     return i;
 }
 
+// CLIENT FIFO ASSEMBLER
 char* getClientFIFO(int pid){
-    char* fifo = (char*)malloc(strlen("ans") + get_number_size(pid) + 1);
+    char* fifo = (char*)malloc(strlen("ans") + get_number_lenght(pid) + 1);
 
     sprintf(fifo, "ans%d", pid);
 
     return fifo;
 }
 
+// SIGNAL SIGALRM HANDLER
 void alarmHandler(int signum){
     keep_going = 0;
     signum = signum;
     printf("[MAIN]: Closing time!\n");
 }
 
+// THREAD CANCELATION HANDLER
 static void cleanup_handler(void *tnum){
     char *logmsg;
     int len;
