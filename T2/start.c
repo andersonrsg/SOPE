@@ -69,7 +69,8 @@
  * 
  * The configuration file must have the following format (any additional whitespaces are ignored):
  * 
- * <start delay in microseconds (us)> <number of seats wanted> <list of seat preferences>
+ * <start delay in microseconds (us)> <timeout in milliseconds> <number of seats wanted>
+ * <list of seat preferences>
  * 
  * where the list of seat preferences is composed of a set of seat numbers followed by END.
  */
@@ -90,9 +91,9 @@
 #include <signal.h>
 #include <unistd.h>
 
-// uncomment this line to enable passing invalid arguments to client processes
+// uncomment this line to disable passing invalid arguments to client processes
 // (or define it through command line/Makefile)
-// #define ADDITIONAL_CHECK
+//#define ADDITIONAL_CHECK
 
 #define MAX_ROOM_SEATS 9999             /* maximum number of room seats/tickets available       */
 #define MAX_CLI_SEATS 99                /* maximum number of seats/tickets per request          */
@@ -147,7 +148,8 @@ enum ReadClientInfoStatus {
   INVALID_START_DELAY = -12,            // unable to read/parse the start delay
   INVALID_NUM_WANTED_SEATS = -13,       // unable to read/parse the number of seats/tickets wanted
   INVALID_SEAT_NUMBER = -14,            // unable to read/parse a seat number (list of preferences)
-  LIST_PREF_TOO_SHORT = -15             // the list of preferences is too short (< #seats/tickets)
+  LIST_PREF_TOO_SHORT = -15,            // the list of preferences is too short (< #seats/tickets)
+  INVALID_TIMEOUT = -16                 // unable to read/parse client timeout
 };
 
 /**
@@ -156,12 +158,14 @@ enum ReadClientInfoStatus {
  *            seq_no: relative order number within the file (useful for error messages);
  *          delay_us: the time offset, in microseconds and relative to the previous client, when the
  *                    client should run [before invoking fork()];
+ *           timeout: client timeout in milliseconds;
  *  num_wanted_seats: number of seats/tickets requested by the client;
  *       preferences: the list of preferences (seat numbers).
  */
 struct client_info {
   int seq_no;                           // sequence number (client relative order)
   int delay_us;                         // delay in microseconds
+  int timeout_ms;                       // client timeout in milliseconds
   int num_wanted_seats;                 // number of seats/tickets wanted
   int preferences[MAX_CLI_SEATS];       // list of preferences (seat numbers)
 };
@@ -398,7 +402,7 @@ static bool redirect_stdin(int fd) {
  * @brief Reads the information respecting a given client.
  * 
  * read_client_info attempts to read the required client information in the following format:
- *    <start delay in microseconds (us)> <no. of seats/tickets wanted> <list of seat preferences>.
+ *    <start delay in us> <timeout in ms> <no. of seats/tickets wanted> <list of seat preferences>.
  * 
  * Note: the list of seat preferences ends when a terminator string is found (macro PREF_LIST_END).
  * 
@@ -427,7 +431,7 @@ static int read_client_info(struct client_info *ci) {
   ci->seq_no = ++seq_no;
 
   // clear list of preferences
-  memset(ci->preferences, -1, sizeof(ci->preferences));
+  memset(ci->preferences, 0xFF, sizeof(ci->preferences));
 
   // if the start delay could not be read or if it is invalid
   if(((ret = scanf("%d", &ci->delay_us)) != 1) || (ci->delay_us < 0)) {
@@ -442,6 +446,17 @@ static int read_client_info(struct client_info *ci) {
       log_error("Invalid start delay (client #%d): %d", seq_no, ci->delay_us);
 
     return INVALID_START_DELAY;
+  }
+
+  // if an error occurred while reading the timeout
+  if(((ret = scanf("%d", &ci->timeout_ms)) != 1) || (ci->timeout_ms < 1)) {
+    // report it
+    if (ret != 1)
+      log_error("Unable to read client timeout (client #%d)", seq_no);
+    else
+      log_error("Invalid client timeout (client #%d): %d", seq_no, ci->timeout_ms);
+
+    return INVALID_TIMEOUT;
   }
 
   // if an error occurred while reading the number of seats/tickets wanted
@@ -521,6 +536,7 @@ static int read_client_info(struct client_info *ci) {
  * @return pid_t The PID of the process created or -1 if fork() failed.
  */
 static pid_t create_client_process(const struct client_info *ci) {
+  char timeout[MAX_TOKEN_LEN];
   char num_wanted_seats[WIDTH_SEAT+1];
   char preferences[MAX_PREFERENCES_LEN];
   pid_t pid;
@@ -536,6 +552,9 @@ static pid_t create_client_process(const struct client_info *ci) {
     
     /* child */
     case 0:
+      // create the argument string that holds the client timeout
+      sprintf(timeout, "%d", ci->timeout_ms);
+
       // create the argument string that holds the number of seats/tickets wanted
       sprintf(num_wanted_seats, "%d", ci->num_wanted_seats);
 
@@ -547,7 +566,7 @@ static pid_t create_client_process(const struct client_info *ci) {
       preferences[idx-1] = '\0';
 
       // execute client process
-      execlp("./client", "./client", num_wanted_seats, preferences, NULL);
+      execlp("./client", "./client", timeout, num_wanted_seats, preferences, NULL);
 
       //
       // code only reaches here if execlp failed
@@ -639,8 +658,8 @@ static int main_loop() {
     );
 
     printf(
-      "CLIENT #%d (PID %d, PGID %d)\n\nDelay: %d us\n",
-      ci.seq_no, pid, getpgid(pid), ci.delay_us
+      "CLIENT #%d (PID %d, PGID %d)\n\nDelay: %d us\nTimeout: %d ms\n",
+      ci.seq_no, pid, getpgid(pid), ci.delay_us, ci.timeout_ms
     );
     printf("#Seats/Tickets: %d\nPreferences: ", ci.num_wanted_seats);
 
