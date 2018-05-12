@@ -19,21 +19,23 @@
 #include <regex.h>
 
 // Defined constants
-#define MAX_MSG_LEN 100                 // Maximum message lenght
-#define MAX_CLI_SEATS 10                // Maximum number of seats
-#define SV_LOG_NAME "slog.txt"          // Server logging file name
-#define SV_BOOK_NAME "sbook.txt"        // Server bookings file name
+#define MAX_MSG_LEN            100      // Maximum message lenght
+#define MAX_ROOM_SEATS        9999      // Maximum number of seats
+#define MAX_CLI_SEATS           99      // Maximum number of seats a client can book at a time
+#define RQT_FIFO_NAME    "requests"     // Requests FIFO name
+#define SV_LOG_NAME      "slog.txt"     // Server logging file name
+#define SV_BOOK_NAME    "sbook.txt"     // Server bookings file name
 
 // Defined Error constants
-#define INVALID_NUM_SEAT         "-1"   // Number of desired seats is higher than permited
-#define INVALID_NUM_PREF_SEAT    "-2"   // Number of preferred seats is invalid
-#define INVALID_SEAT_ID          "-3"   // ID of preferred seat is invalid
-#define PARAM_ERROR              "-4"   // Any other parameter error
-#define BOOKING_FAILED           "-5"   // Could not reservate all the desired seats
-#define FULL_ROOM                "-6"   // The room is full
+#define MAX                    "-1"     // Number of desired seats is higher than permited
+#define NST                    "-2"     // Number of preferred seats is inval
+#define IID                    "-3"     // At least one preferred seat id is invalid
+#define ERR                    "-4"     // Any other parameter error
+#define NAV                    "-5"     // Number of desired seats not available
+#define FUL                    "-6"     // The room is full
 
 // Defined function-like macros
-#define DELAY(usec)       usleep(usec)  // Simulate the existence of some delay
+#define DELAY(usec)     usleep(usec)    // Simulate the existence of some delay
 
 // Global variables
 int num_room_seats;                     // Number of seats
@@ -43,6 +45,8 @@ int *seats;                             // Seats
 int keep_going;                         // Alarm flag
 int sv_log_fd;                          // Server logging file file descriptor
 int sv_book_fd;                         // Server bookings file file descriptor
+int rqt_fifo_fd;                        // FIFO requests file descriptor
+pthread_t *tids;                              // Threads' id
 typedef struct{
     int client;                         // store the PID of the client
     int num_wanted_seats;               // store the number of wanted seats
@@ -52,7 +56,6 @@ requests *rq_buffer;                     // Shared buffer
 pthread_mutex_t rqt_mut = PTHREAD_MUTEX_INITIALIZER;    // Initialize the request mutex
 pthread_mutex_t seats_mut = PTHREAD_MUTEX_INITIALIZER;  // Initialize the seats mutex
 pthread_cond_t cvar = PTHREAD_COND_INITIALIZER;         // Initialize the conditional variable
-
 
 // Functions
 int get_number_lenght(size_t number);                   // Used to get lenght of the number
@@ -64,19 +67,18 @@ int isSeatFree(int *seats, int seatNum);                // Used to check if seat
 void bookSeat(int *seats, int seatNum, int clientId);   // Used to book a seat
 void freeSeat(int *seats, int seatNum);                 // Used to free a seat
 void alarmHandler(int signum);                          // Used to signal the main thread to stop recieving requests
+void sigintHandler(int signum);                         // Interrupt signal handler
 static void cleanup_handler(void *arg);                 // Cleanup Handler executed when thread is canceled
 
 
 // MAIN
 int main(int argc, char const *argv[]) {
-    int fd,                             // File Descriptor
-        *tnum,                          // Thread numbers
+    int *tnum,                          // Thread numbers
         len;                            // Lenght of bkmsg
     char request[MAX_MSG_LEN+1],        // string formatted request
          *args,                         // parameters as a string
          *bkmsg;                        // Message to write in server bookings file
     requests *rq;                       // structured formatted request
-    pthread_t *tids;                    // Thread ids
     regex_t reg;                        // regex expression
 
     // Usage
@@ -111,7 +113,10 @@ int main(int argc, char const *argv[]) {
 
     // Set global variables
     printf("[MAIN]: Setting global parameters\n");
-    num_room_seats = strtol(argv[1], NULL, 10);
+    if((num_room_seats = strtol(argv[1], NULL, 10)) > MAX_ROOM_SEATS){
+        printf("[MAIN]: Number of room seats higher than permited\n");
+        exit(1);
+    }
     num_tickets_offices = strtol(argv[2], NULL, 10);
     open_time = strtol(argv[3], NULL, 10);
     keep_going = 1;
@@ -129,25 +134,25 @@ int main(int argc, char const *argv[]) {
     printf("[MAIN]: Opened server logging file\n");
 
     // Make FIFO 'ŕequests'
-    printf("[MAIN]: Attempting to create FIFO 'requests'\n");
-    if(mkfifo("requests", 0660) == 0){
-        printf("[MAIN]: FIFO 'requests' created successfuly\n");
+    printf("[MAIN]: Attempting to create FIFO '%s'\n", RQT_FIFO_NAME);
+    if(mkfifo(RQT_FIFO_NAME, 0660) == 0){
+        printf("[MAIN]: FIFO '%s' created successfuly\n", RQT_FIFO_NAME);
     }
     else{
-        if(errno == EEXIST) printf("[MAIN]: FIFO 'requests' already exists\n");
+        if(errno == EEXIST) printf("[MAIN]: FIFO '%s' already exists\n", RQT_FIFO_NAME);
         else {
-            fprintf(stderr, "[MAIN]: Can't create FIFO 'requests'\n");
+            fprintf(stderr, "[MAIN]: Can't create FIFO '%s'\n", RQT_FIFO_NAME);
             exit(1);
         }
     }
 
     // Open FIFO 'requests' for reading and prevent waiting
-    printf("[MAIN]: Attempting to open FIFO 'requests'\n");
-    if((fd = open("requests", O_RDONLY | O_NONBLOCK)) == -1){
-        fprintf(stderr, "[MAIN]: Error opening FIFO 'requests' in READONLY mode");
+    printf("[MAIN]: Attempting to open FIFO '%s'\n", RQT_FIFO_NAME);
+    if((rqt_fifo_fd = open(RQT_FIFO_NAME, O_RDONLY | O_NONBLOCK)) == -1){
+        fprintf(stderr, "[MAIN]: Error opening FIFO '%s' in READONLY mode", RQT_FIFO_NAME);
         exit(1);
     }
-    printf("[MAIN]: successfuly opened FIFO 'requests'\n");
+    printf("[MAIN]: successfuly opened FIFO '%s'\n", RQT_FIFO_NAME);
 
     // Allocate memory for thread ids and numbers
     tids = malloc(num_tickets_offices * sizeof(pthread_t));
@@ -165,7 +170,12 @@ int main(int argc, char const *argv[]) {
     free(tnum);
     printf("[MAIN]: Created %d ticket offices\n", num_tickets_offices);
 
-    // Estrablish SIGALRM handler
+    // Establish SIGINT handler
+    printf("[MAIN]: Establishing SIGINT handler\n");
+    signal(SIGINT, sigintHandler);
+    printf("[MAIN]: Established SIGINT handler\n");
+
+    // Establish SIGALRM handler
     printf("[MAIN]: Establishing SIGALRM handler\n");
     signal(SIGALRM, alarmHandler);
     printf("[MAIN]: Established SIGALRM handler\n");
@@ -181,7 +191,7 @@ int main(int argc, char const *argv[]) {
     // Receive requests
     printf("[MAIN]: Ready to recieve requests\n");
     while (keep_going) {
-        if(read(fd, request, MAX_MSG_LEN) > 0){
+        if(read(rqt_fifo_fd, request, MAX_MSG_LEN) > 0){
             printf("received request: %s\n", request);
             rq = requestDisassembler(request);
             rq_buffer = rq;
@@ -190,16 +200,16 @@ int main(int argc, char const *argv[]) {
     }
 
     // Close FIFO 'requests'
-    printf("[MAIN]: Closing FIFO 'requests'\n");
-    close(fd);
-    printf("[MAIN]: FIFO 'requests' closed\n");
+    printf("[MAIN]: Closing FIFO '%s'\n", RQT_FIFO_NAME);
+    close(rqt_fifo_fd);
+    printf("[MAIN]: FIFO '%s' closed\n", RQT_FIFO_NAME);
 
     // Destroy FIFO 'requests'
-    printf("[MAIN]: Destroying FIFO 'requests'\n");
-    if(unlink("requests") < 0)
-        fprintf(stderr, "[MAIN]: Error destroying FIFO 'requests'\n");
+    printf("[MAIN]: Destroying FIFO '%s'\n", RQT_FIFO_NAME);
+    if(unlink(RQT_FIFO_NAME) < 0)
+        fprintf(stderr, "[MAIN]: Error destroying FIFO '%s'\n", RQT_FIFO_NAME);
     else
-        printf("[MAIN]: Destroyed FIFO 'requests'\n");
+        printf("[MAIN]: Destroyed FIFO '%s'\n", RQT_FIFO_NAME);
 
     // Terminate threads
     printf("[MAIN]: Terminating %d ticket offices\n", num_tickets_offices);
@@ -207,7 +217,23 @@ int main(int argc, char const *argv[]) {
         pthread_cancel(tids[i]);
         pthread_join(tids[i], NULL);
     }
+    free(tids);
     printf("[MAIN]: Terminated %d ticket offices\n", num_tickets_offices);
+
+    // Destroy mutexes
+    printf("[MAIN]: Destroying Request mutex\n");
+    if(pthread_mutex_destroy(&rqt_mut)){
+        fprintf(stderr, "[MAIN]: Error destroying Request mutex\n");
+        exit(1);
+    }
+    printf("[MAIN]: Destroyed Request mutex\n");
+
+    printf("[MAIN]: Destroying Seats mutex\n");
+    if(pthread_mutex_destroy(&seats_mut)){
+        fprintf(stderr, "[MAIN]: Error destroying Seats mutex\n");
+        exit(1);
+    }
+    printf("[MAIN]: Destroyed Seats mutex\n");
 
 
     printf("[MAIN]: Writing to server booking file\n");
@@ -282,18 +308,18 @@ requests* requestDisassembler(char* request){
 
 // REQUEST HANDLER
 void *requestHandler(void *tid){
-    requests *rq;
-    int err = 0,
-        fd,
-        num_preferred_seats,
-        num_wanted_seats,
-        *preferred_seats,
-        tnum = *(int*)tid,
-        attempts = 3,
-        len = 0;
-    char *fifo,
-         msg[MAX_MSG_LEN],
-         *logmsg;
+    requests *rq;                   // Store the request struct
+    int err = 0,                    // Error value
+        fd,                         // Client fifo file descriptor
+        num_preferred_seats,        // Number of client preferred seats
+        num_wanted_seats,           // Number of client desired seats
+        *preferred_seats,           // Client preferred seats
+        tnum = *(int*)tid,          // Thread number
+        attempts = 3,               // Attempts to open client fifo
+        len = 0;                    // Lenght of logging message
+    char *fifo,                     // Client fifo name
+         msg[MAX_MSG_LEN],          // Response message (in case of success)
+         *logmsg;                   // Logging message
 
     printf("[TICKET OFFICE %d]: Ready\n", tnum);
 
@@ -316,6 +342,12 @@ void *requestHandler(void *tid){
         rq = rq_buffer;
         rq_buffer = NULL;
         pthread_mutex_unlock(&rqt_mut);
+
+        // Disable cancelation until operation is done
+        if(pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL)){
+            fprintf(stderr, "[TICKET OFFICE %d]: Error setting cancelation state. Ignoring request\n", tnum);
+            continue;
+        }
 
         // Get client dedicated fifo name
         fifo = malloc(sizeof("ans") + get_number_lenght(rq->client) + 1);
@@ -375,7 +407,7 @@ void *requestHandler(void *tid){
 
             if(num_wanted_seats){   // Could not reservate the total number of desired seats
                 printf("[TICKET OFFICE %d]: Could not book the total number of seats desired. Rolling back booking operation\n", tnum);
-                write(fd, BOOKING_FAILED, sizeof(BOOKING_FAILED));
+                write(fd, NAV, sizeof(NAV));
 
                 // Rollback operation
                 pthread_mutex_lock(&seats_mut);
@@ -401,43 +433,62 @@ void *requestHandler(void *tid){
                 }
                 len += sprintf(logmsg+len, "\n");
 
-                write(fd, msg, sizeof(msg));
+                // Try to write to client
+                // If client has timed out, rollback bookings
+                if(write(fd, msg, sizeof(msg)) < 0){
+                    printf("[TICKET OFFICE %d]: Error writing to client %d\n", tnum, rq->client);
+
+                    // Rollback operation
+                    pthread_mutex_lock(&seats_mut);
+                    for (int i = 0; i < num_preferred_seats; i++) {
+                        if (preferred_seats[i] != -1) {
+                            freeSeat(seats, rq->preferred_seats[i]);
+                        }
+                    }
+                    len += sprintf(logmsg+len, " NAV\n");
+                    pthread_mutex_unlock(&seats_mut);
+                }
             }
 
             printf("\n");
         }
         else if(err == -1){
             // Number of wanted seats higher than permited
-            write(fd, INVALID_NUM_SEAT, sizeof(INVALID_NUM_SEAT));
+            write(fd, MAX, sizeof(MAX));
             fprintf(stderr, "[TICKET OFFICE %d]: Number of seats wanted higher than permited\n", tnum);
             len += sprintf(logmsg+len, " MAX\n");
         }
         else if(err == -2){
             // Number of preferred seats invalid
-            write(fd, INVALID_NUM_PREF_SEAT, sizeof(INVALID_NUM_PREF_SEAT));
+            write(fd, NST, sizeof(NST));
             fprintf(stderr, "[TICKET OFFICE %d]: Number of preferred seats is invalid\n", tnum);
             len += sprintf(logmsg+len, " NST\n");
         }
         else if(err == -3){
             // One or more of the preferred seats id is invalid
-            write(fd, INVALID_SEAT_ID, sizeof(INVALID_SEAT_ID));
+            write(fd, IID, sizeof(IID));
             fprintf(stderr, "[TICKET OFFICE %d]: One of more of the preferred seats id is invalid\n", tnum);
             len += sprintf(logmsg+len, " IID\n");
         }
         else if(err == -4){
             // Invalid parameters
-            write(fd, PARAM_ERROR, sizeof(PARAM_ERROR));
+            write(fd, ERR, sizeof(ERR));
             fprintf(stderr, "[TICKET OFFICE %d]: Invalid parameters\n", tnum);
             len += sprintf(logmsg+len, " ERR\n");
         }
         else if(err == -6){
             // Room is full
-            write(fd, FULL_ROOM, sizeof(FULL_ROOM));
+            write(fd, FUL, sizeof(FUL));
             fprintf(stderr, "[TICKET OFFICE %d]: Room is full\n", tnum);
             len += sprintf(logmsg+len, " FUL\n");
         }
 
         write(sv_log_fd, logmsg, len);
+
+        if(pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)){
+            fprintf(stderr, "[TICKET OFFICE %d]: Error enabling cancelation state. Exiting\n", tnum);
+            pthread_exit(NULL);
+        }
     }
 
     len = sprintf(logmsg, "%d-CLOSE\n", tnum);
@@ -543,9 +594,83 @@ char* getClientFIFO(int pid){
 
 // SIGNAL SIGALRM HANDLER
 void alarmHandler(int signum){
+    (void)signum; // Ignore unused parameter
     keep_going = 0;
-    signum = signum;
     printf("[MAIN]: Closing time!\n");
+}
+
+// SIGNAL SIGINT HANDLER
+void sigintHandler(int signum){
+    char answer,
+        *bkmsg;
+    int len;
+
+    (void) signum;
+
+    printf("\n\n[MAIN]: Do you really want to end executing? (Y/y for yes or any other key for no) ");
+    scanf("%c%*[^\n]%*c", &answer);
+
+    if(answer == 'Y' || answer == 'y'){
+        // Close FIFO 'requests'
+        printf("\n[MAIN]: Closing FIFO 'requests'\n");
+        close(rqt_fifo_fd);
+        printf("[MAIN]: FIFO 'requests' closed\n");
+
+        // Destroy FIFO 'requests'
+        printf("[MAIN]: Destroying FIFO 'requests'\n");
+        if(unlink("requests") < 0)
+            fprintf(stderr, "[MAIN]: Error destroying FIFO 'requests'\n");
+        else
+            printf("[MAIN]: Destroyed FIFO 'requests'\n");
+
+        // Terminate threads
+        printf("[MAIN]: Terminating %d ticket offices\n", num_tickets_offices);
+        for (int i = 0; i < num_tickets_offices; i++) {
+            pthread_cancel(tids[i]);
+            pthread_join(tids[i], NULL);
+        }
+        free(tids);
+        printf("[MAIN]: Terminated %d ticket offices\n", num_tickets_offices);
+
+        // Destroy mutexes
+        printf("[MAIN]: Destroying Request mutex\n");
+        if(pthread_mutex_destroy(&rqt_mut)){
+            fprintf(stderr, "[MAIN]: Error destroying Request mutex\n");
+            exit(1);
+        }
+        printf("[MAIN]: Destroyed Request mutex\n");
+
+        printf("[MAIN]: Destroying Seats mutex\n");
+        if(pthread_mutex_destroy(&seats_mut)){
+            fprintf(stderr, "[MAIN]: Error destroying Seats mutex\n");
+            exit(1);
+        }
+        printf("[MAIN]: Destroyed Seats mutex\n");
+
+
+        printf("[MAIN]: Writing to server booking file\n");
+        if((sv_book_fd = open(SV_BOOK_NAME, O_WRONLY | O_TRUNC | O_CREAT, 0660)) < 0){
+            fprintf(stderr, "[MAIN]: Error opening server booking file\n");
+            exit(1);
+        }
+        bkmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
+        len = 0;
+        for (int i = 0; i < num_room_seats; i++) {
+            if(seats[i]){
+                len += sprintf(bkmsg+len, "%04d\n", i+1);
+            }
+        }
+        write(sv_book_fd, bkmsg, len);
+        printf("[MAIN]: Finished writing to server booking file\n");
+
+        // Exit program successfuly
+        printf("[MAIN]: Terminating server\n");
+        write(sv_log_fd, "SERVER INTERRUPTED\n", sizeof("SERVER INTERRUPTED\n"));
+        exit(0);
+    }
+    else{
+        raise(SIGCONT);
+    }
 }
 
 // THREAD CANCELATION HANDLER
@@ -553,7 +678,6 @@ static void cleanup_handler(void *tnum){
     char *logmsg;
     int len;
 
-    pthread_mutex_unlock(&seats_mut);
     pthread_mutex_unlock(&rqt_mut);
 
     logmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
