@@ -1,10 +1,10 @@
 CC 		= gcc
-CFLAGS 	= -Wall -Wextra -D_REENTRANT -pthread
+CFLAGS 	= -Wall -Wextra -Werror -D_REENTRANT -pthread
 RM 		= rm -f
 
 default: all
 
-all: Server Client Start
+all: Server Client
 
 Server: server.c
 	@$(CC) $(CFLAGS) -o server server.c
@@ -12,8 +12,5 @@ Server: server.c
 Client: client.c
 	@$(CC) $(CFLAGS) -o client client.c
 
-Start: start.c
-	@$(CC) $(CFLAGS) -o start start.c
-
 clean:
-	@$(RM) server client start
+	@$(RM) server client

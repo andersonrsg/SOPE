@@ -20,7 +20,7 @@
 #include "constants.h"
 
 // Defined function-like macros
-#define DELAY(usec)     usleep(usec)    // Simulate the existence of some delay
+#define DELAY(sec)     sleep(sec)       // Simulate the existence of some delay
 
 // Global variables
 int num_room_seats;                     // Number of seats
@@ -542,6 +542,7 @@ int validateRequest(int *seats, requests *request){
 
 // SEAT AVAILABILITY CHECK
 int isSeatFree(int *seats, int seatNum){
+    DELAY(1);
     if(seats[seatNum]){
         return 0;
     }
@@ -552,11 +553,13 @@ int isSeatFree(int *seats, int seatNum){
 
 // SEAT BOOKER
 void bookSeat(int *seats, int seatNum, int clientId){
+    DELAY(1);
     seats[seatNum] = clientId;
 }
 
 // SEAT UNBOOKER
 void freeSeat(int *seats, int seatNum){
+    DELAY(1);
     seats[seatNum] = 0;
 }
 
