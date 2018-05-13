@@ -663,7 +663,7 @@ void sigintHandler(int signum){
     }
 }
 
-// THREAD CANCELATION HANDLER
+// THREAD CANCELLATION HANDLER
 static void cleanup_handler(void *tnum){
     char *logmsg;
     int len;
