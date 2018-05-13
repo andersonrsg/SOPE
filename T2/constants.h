@@ -9,6 +9,11 @@
 #define SV_LOG_NAME      "slog.txt"     // Server logging file name
 #define SV_BOOK_NAME    "sbook.txt"     // Server bookings file name
 
+#define WIDTH_PID "5"
+#define WIDTH_XX "2"
+#define WIDTH_NN "2"
+#define WIDTH_SEAT "4"
+
 // Defined Error constants
 #define MAX                    -1     // Number of desired seats is higher than permited
 #define NST                    -2     // Number of preferred seats is inval

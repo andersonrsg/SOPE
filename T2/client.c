@@ -12,12 +12,7 @@
 #include "constants.h"
 
 // Uncomment the following line to print additional information for better debbuging.
-#define DEBUG_MODE
-
-#define WIDTH_PID "5"
-#define WIDTH_XX "2"
-#define WIDTH_NN "2"
-#define WIDTH_SEAT "4"
+//#define DEBUG_MODE
 
 struct response {
     int timeout;
@@ -108,9 +103,7 @@ void writeLog(pid_t pid, int reservedSeats, char *seats) {
         for (int i = 0; i < reservedSeats; i++) {
             currSeat = strtok(NULL, " ");
             
-            printf("ae\n");
             int currSeatInt = atoi(currSeat);
-            printf("ae222\n");
             
             snprintf(message, sizeof message, "%0"WIDTH_PID"d %0"WIDTH_XX"d.%0"WIDTH_NN"d %0"WIDTH_SEAT"d\n", pid, i+1, reservedSeats, currSeatInt);
             write(fd, message, strlen(message));
