@@ -186,15 +186,23 @@ int main(int argc, char const *argv[]) {
 
     // Close FIFO 'requests'
     printf("[MAIN]: Closing FIFO '%s'\n", RQT_FIFO_NAME);
-    close(rqt_fifo_fd);
-    printf("[MAIN]: FIFO '%s' closed\n", RQT_FIFO_NAME);
+    if(close(rqt_fifo_fd) < 0){
+        fprintf(stderr, "[MAIN]: Error closing FIFO '%s'\n", RQT_FIFO_NAME);
+        exit(1);
+    }
+    else{
+        printf("[MAIN]: FIFO '%s' closed\n", RQT_FIFO_NAME);
+    }
 
     // Destroy FIFO 'requests'
     printf("[MAIN]: Destroying FIFO '%s'\n", RQT_FIFO_NAME);
-    if(unlink(RQT_FIFO_NAME) < 0)
+    if(unlink(RQT_FIFO_NAME) < 0){
         fprintf(stderr, "[MAIN]: Error destroying FIFO '%s'\n", RQT_FIFO_NAME);
-    else
+        exit(1);
+    }
+    else{
         printf("[MAIN]: Destroyed FIFO '%s'\n", RQT_FIFO_NAME);
+    }
 
     // Terminate threads
     printf("[MAIN]: Terminating %d ticket offices\n", num_tickets_offices);
@@ -230,7 +238,7 @@ int main(int argc, char const *argv[]) {
     len = 0;
     for (int i = 0; i < num_room_seats; i++) {
         if(seats[i]){
-            len += sprintf(bkmsg+len, "%04d\n", i+1);
+            len += sprintf(bkmsg+len, "%0"WIDTH_SEAT"d\n", i+1);
         }
     }
     write(sv_book_fd, bkmsg, len);
@@ -331,9 +339,9 @@ void *requestHandler(void *tid){
         rq_buffer = NULL;
         pthread_mutex_unlock(&rqt_mut);
 
-        // Disable cancelation until operation is done
+        // Disable cancellation until operation is done
         if(pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL)){
-            fprintf(stderr, "[TICKET OFFICE %d]: Error setting cancelation state. Ignoring request\n", tnum);
+            fprintf(stderr, "[TICKET OFFICE %d]: Error setting cancellation state. Ignoring request\n", tnum);
             continue;
         }
 
@@ -358,9 +366,9 @@ void *requestHandler(void *tid){
         }
 
         // Build log message
-        log_len = sprintf(logmsg, "%02d-%d-%02d:", tnum, rq->client, rq->num_wanted_seats);
+        log_len = sprintf(logmsg, "%0"WIDTH_THREAD"d-%0"WIDTH_PID"d-%0"WIDTH_NN"d:", tnum, rq->client, rq->num_wanted_seats);
         for (int i = 0; rq->preferred_seats[i] != INT_MIN; i++) {
-            log_len += sprintf(logmsg + log_len, " %04d", rq->preferred_seats[i] + 1);
+            log_len += sprintf(logmsg + log_len, " %0"WIDTH_SEAT"d", rq->preferred_seats[i] + 1);
         }
         log_len += sprintf(logmsg+log_len, " -");
 
@@ -418,7 +426,7 @@ void *requestHandler(void *tid){
                     printf(" %d", booked_seats[i] + 1);
 
                     msg_len += sprintf(msg + msg_len, " %d", booked_seats[i] + 1);
-                    log_len += sprintf(logmsg+log_len, " %04d", booked_seats[i] + 1);
+                    log_len += sprintf(logmsg+log_len, " %0"WIDTH_SEAT"d", booked_seats[i] + 1);
                 }
                 printf("\n");
                 log_len += sprintf(logmsg+log_len, "\n");
@@ -463,8 +471,9 @@ void *requestHandler(void *tid){
         write(fd, msg, msg_len);
         write(sv_log_fd, logmsg, log_len);
 
+        // Enable cancellation
         if(pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)){
-            fprintf(stderr, "[TICKET OFFICE %d]: Error enabling cancelation state. Exiting\n", tnum);
+            fprintf(stderr, "[TICKET OFFICE %d]: Error enabling cancellation state. Exiting\n", tnum);
             pthread_exit(NULL);
         }
     }
@@ -635,7 +644,7 @@ void sigintHandler(int signum){
         len = 0;
         for (int i = 0; i < num_room_seats; i++) {
             if(seats[i]){
-                len += sprintf(bkmsg+len, "%04d\n", i+1);
+                len += sprintf(bkmsg+len, "%0"WIDTH_SEAT"d\n", i+1);
             }
         }
         write(sv_book_fd, bkmsg, len);
