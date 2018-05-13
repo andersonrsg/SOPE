@@ -201,15 +201,17 @@ void parseResponse(char *response, pid_t pid) {
         
         writeLog(pid, id, NULL);
         
-        pthread_exit(NULL);
+//        pthread_exit(NULL);
+//        exitHandler(pid);
     } else {
         
 #ifdef DEBUG_MODE
         printf("[CLIENT %d]: received response: %s\n", pid, responsedup);
 #endif
         writeLog(pid, id, responsedup);
-
+//        exitHandler(pid);
     }
+    pthread_exit(NULL);
 }
 
 
