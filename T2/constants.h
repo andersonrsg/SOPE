@@ -15,6 +15,8 @@
 #define WIDTH_SEAT "4"
 #define WIDTH_THREAD "2"
 
+#define DELAY_TIME              1     // Simulated delay time
+
 // Defined Error constants
 #define MAX                    -1     // Number of desired seats is higher than permited
 #define NST                    -2     // Number of preferred seats is inval
@@ -22,5 +24,8 @@
 #define ERR                    -4     // Any other parameter error
 #define NAV                    -5     // Number of desired seats not available
 #define FUL                    -6     // The room is full
+
+// Defined function-like macros
+#define DELAY(sec)     sleep(sec)       // Simulate the existence of some delay
 
 #endif

@@ -19,9 +19,6 @@
 #include <regex.h>
 #include "constants.h"
 
-// Defined function-like macros
-#define DELAY(sec)     sleep(sec)       // Simulate the existence of some delay
-
 // Global variables
 int num_room_seats;                     // Number of seats
 int num_tickets_offices;                // Number of ticket offices (threads)
@@ -324,7 +321,7 @@ void *requestHandler(void *tid){
     msg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
     logmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
 
-    sprintf(logmsg, "%d-OPEN\n", tnum);
+    sprintf(logmsg, "%0"WIDTH_THREAD"d-OPEN\n", tnum);
     write(sv_log_fd, logmsg, sizeof(logmsg));
 
 
@@ -542,7 +539,7 @@ int validateRequest(int *seats, requests *request){
 
 // SEAT AVAILABILITY CHECK
 int isSeatFree(int *seats, int seatNum){
-    DELAY(1);
+    DELAY(DELAY_TIME);
     if(seats[seatNum]){
         return 0;
     }
@@ -553,13 +550,13 @@ int isSeatFree(int *seats, int seatNum){
 
 // SEAT BOOKER
 void bookSeat(int *seats, int seatNum, int clientId){
-    DELAY(1);
+    DELAY(DELAY_TIME);
     seats[seatNum] = clientId;
 }
 
 // SEAT UNBOOKER
 void freeSeat(int *seats, int seatNum){
-    DELAY(1);
+    DELAY(DELAY_TIME);
     seats[seatNum] = 0;
 }
 
@@ -672,7 +669,7 @@ static void cleanup_handler(void *tnum){
 
     logmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
 
-    len = sprintf(logmsg, "%d-CLOSE\n", *(int*)tnum);
+    len = sprintf(logmsg, "%0"WIDTH_THREAD"d-CLOSE\n", *(int*)tnum);
 
     write(sv_log_fd, logmsg, len);
 }
