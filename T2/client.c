@@ -25,7 +25,6 @@ int readline(int fd, char *str);
 void parseResponse(char *response, pid_t pid);
 void writeLog(pid_t pid, int reservedSeats, char *seats);
 void alarmHandler(int signum);
-char loading(char curr);
 void exitHandler(pid_t pids);
 
 int timeNotOver = 1;
@@ -39,15 +38,6 @@ int main(int argc, char *argv[]) {
     int timeout = 0;
     pthread_t tresponse;
     struct response resp;
-    
-    //    char currChar = '|';
-    
-    //    printf("** Running process %d (PGID %d) **\n", pids, getpgrp());
-    //    while (1) {
-    //        printf("\r%s", &currChar);
-    //        currChar = loading(currChar);
-    //        sleep(1);
-    //    }
     
     if (argc != 4) {
         printf("It should be passed to the client three arguments. ( <time_out> <num_wanted_seats> <pref_seat_list> )\n");
@@ -69,9 +59,6 @@ int main(int argc, char *argv[]) {
     
     
     pthread_join(tresponse, NULL);
-//    close(fdAnswers);
-//    unlink(fifoName);
-//    printf("[CLIENT %d]: Finished execution\n", pids);
     
     exitHandler(pids);
 }
@@ -227,11 +214,7 @@ int postRequest(char *argv[], pid_t pid, int timeout) {
         if (fdRequest == -1) sleep(1);
     } while (fdRequest == -1);
     
-    sprintf(message, "%d ", pid);
-    strcat(message, argv[2]);
-    strcat(message, " ");
-    strcat(message, argv[3]);
-    
+    sprintf(message, "%d %s %s", pid, argv[2], argv[3]);
     messagelen = strlen(message) + 1;
     
     write(fdRequest, message, messagelen);
@@ -248,31 +231,9 @@ int postRequest(char *argv[], pid_t pid, int timeout) {
     return 0;
 }
 
-char loading(char curr) {
-    switch (curr) {
-        case '|':
-            return '/';
-            break;
-        case '/':
-            return '-';
-            break;
-        case '-':
-            return '\\';
-            break;
-        case '\\':
-            return '|';
-            break;
-            
-        default:
-            break;
-    }
-    return '|';
-}
-
 int readline(int fd, char *str)
 {
     int n;
-    //    char currChar = '|';
     do {
         n = read(fd,str,1);
         
