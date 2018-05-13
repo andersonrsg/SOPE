@@ -13,6 +13,7 @@
 #define WIDTH_XX "2"
 #define WIDTH_NN "2"
 #define WIDTH_SEAT "4"
+#define WIDTH_THREAD "2"
 
 // Defined Error constants
 #define MAX                    -1     // Number of desired seats is higher than permited
@@ -22,4 +23,4 @@
 #define NAV                    -5     // Number of desired seats not available
 #define FUL                    -6     // The room is full
 
-#endif 
+#endif
