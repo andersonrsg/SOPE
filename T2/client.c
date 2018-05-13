@@ -26,9 +26,12 @@ void parseResponse(char *response, pid_t pid);
 void writeLog(pid_t pid, int reservedSeats, char *seats);
 void alarmHandler(int signum);
 char loading(char curr);
+void exitHandler(pid_t pids);
 
 int timeNotOver = 1;
 int signums = 0;
+char fifoName[10];
+int fdAnswers;
 
 int main(int argc, char *argv[]) {
     pid_t pids = getpid();
@@ -47,7 +50,7 @@ int main(int argc, char *argv[]) {
     //    }
     
     if (argc != 4) {
-        printf("It should be passed to the client three arguments.\n");
+        printf("It should be passed to the client three arguments. ( <time_out> <num_wanted_seats> <pref_seat_list> )\n");
     } else {
         printf("ARGS: %s | %s | %s\n", argv[1], argv[2], argv[3]);
     }
@@ -66,8 +69,11 @@ int main(int argc, char *argv[]) {
     
     
     pthread_join(tresponse, NULL);
-    printf("[CLIENT %d]: Finished execution\n", pids);
-    return 0;
+//    close(fdAnswers);
+//    unlink(fifoName);
+//    printf("[CLIENT %d]: Finished execution\n", pids);
+    
+    exitHandler(pids);
 }
 
 /**
@@ -142,8 +148,6 @@ void *getResponse(void *arg) {
     
     struct response *param = (struct response*) arg;
     
-    char fifoName[10];
-    int fdAnswers;
     char response[200];
     
     sprintf(fifoName, "ans%d", param->pid);
@@ -156,11 +160,10 @@ void *getResponse(void *arg) {
         printf("RESPONSE: %s\n", response);
 #endif
         parseResponse(response, param->pid);
-        close(fdAnswers);
-        unlink(fifoName);
+    
         printf("[CLIENT %d]: Ended execution\n", param->pid);
         
-        return NULL;
+//        return NULL;
     }
     
     return NULL;
@@ -198,7 +201,7 @@ void parseResponse(char *response, pid_t pid) {
         
         writeLog(pid, id, NULL);
         
-        exit(0);
+        pthread_exit(NULL);
     } else {
         
 #ifdef DEBUG_MODE
@@ -221,7 +224,6 @@ int postRequest(char *argv[], pid_t pid, int timeout) {
         fdRequest = open("requests", O_WRONLY);
         if (fdRequest == -1) sleep(1);
     } while (fdRequest == -1);
-    
     
     sprintf(message, "%d ", pid);
     strcat(message, argv[2]);
@@ -280,5 +282,12 @@ void alarmHandler(int signum) {
     timeNotOver = 0;
     signums = signum;
     printf("[CLIENT %d]: Client timeout!\n", getpid());
+    exitHandler(getpid());
+}
+
+void exitHandler(pid_t pids) {
+    close(fdAnswers);
+    unlink(fifoName);
+    printf("[CLIENT %d]: Finished execution\n", pids);
     exit(0);
 }
