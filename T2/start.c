@@ -167,7 +167,8 @@ struct client_info {
   int delay_us;                         // delay in microseconds
   int timeout_ms;                       // client timeout in milliseconds
   int num_wanted_seats;                 // number of seats/tickets wanted
-  int preferences[MAX_CLI_SEATS];       // list of preferences (seat numbers)
+  int preferences[MAX_CLI_SEATS*2];     // list of preferences (seat numbers)
+  int npreferences;                     // length of the list of preferences
 };
 
 // global variable holding the PGID of all client processes and of the LEADER process [G2]
@@ -431,7 +432,10 @@ static int read_client_info(struct client_info *ci) {
   ci->seq_no = ++seq_no;
 
   // clear list of preferences
-  memset(ci->preferences, 0xFF, sizeof(ci->preferences));
+  memset(ci->preferences, 0x00, sizeof(ci->preferences));
+
+  // start with an empty list of preferences
+  ci->npreferences = 0;
 
   // if the start delay could not be read or if it is invalid
   if(((ret = scanf("%d", &ci->delay_us)) != 1) || (ci->delay_us < 0)) {
@@ -493,6 +497,8 @@ static int read_client_info(struct client_info *ci) {
       return INVALID_SEAT_NUMBER;
     }
 
+
+
 #ifdef ADDITIONAL_CHECK
     // check if the seat number is valid
     if ((ci->preferences[idx] < 1) || (ci->preferences[idx] > MAX_ROOM_SEATS)) {
@@ -506,7 +512,7 @@ static int read_client_info(struct client_info *ci) {
     }
 #endif
   }
-  while (ci->preferences[idx] >= 0);
+  while (idx < sizeof(ci->preferences)/sizeof(ci->preferences[0]));
 
 #ifdef ADDITIONAL_CHECK
   // check if the list of seat preferences is large enough for the number of seats/tickets requested
@@ -519,6 +525,8 @@ static int read_client_info(struct client_info *ci) {
     return LIST_PREF_TOO_SHORT;
   }
 #endif
+
+  ci->npreferences = idx;
 
   // return the size of the list of preferences
   return idx;
@@ -553,14 +561,14 @@ static pid_t create_client_process(const struct client_info *ci) {
     /* child */
     case 0:
       // create the argument string that holds the client timeout
-      sprintf(timeout, "%d", ci->timeout_ms);
+      snprintf(timeout, sizeof(timeout), "%d", ci->timeout_ms);
 
       // create the argument string that holds the number of seats/tickets wanted
-      sprintf(num_wanted_seats, "%d", ci->num_wanted_seats);
+      snprintf(num_wanted_seats, sizeof(num_wanted_seats), "%d", ci->num_wanted_seats);
 
       // create the argument string that holds the list of preferences
-      for(i = 0, idx = 0; i < MAX_ROOM_SEATS && ci->preferences[i] >= 0; ++i)
-        idx += sprintf(&preferences[idx], "%d ", ci->preferences[i]);
+      for(i = 0, idx = 0; i < MAX_ROOM_SEATS && i < ci->npreferences; ++i)
+        idx += snprintf(&preferences[idx], MAX_PREFERENCES_LEN - idx, "%d ", ci->preferences[i]);
 
       // replace last space of the list of preferences by the null character
       preferences[idx-1] = '\0';
@@ -664,7 +672,7 @@ static int main_loop() {
     printf("#Seats/Tickets: %d\nPreferences: ", ci.num_wanted_seats);
 
     // list of preferences
-    for(i = 0; (i < MAX_ROOM_SEATS) && (ci.preferences[i] >= 0); ++i)
+    for(i = 0; (i < MAX_ROOM_SEATS) && (i < ci.npreferences); ++i)
       printf("%d ", ci.preferences[i]);
 
     printf(
