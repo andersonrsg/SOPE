@@ -2,7 +2,7 @@
 #define constants_h_
 
 // Defined constants
-#define MAX_MSG_LEN            500      // Maximum message lenght
+#define MAX_MSG_LEN            100      // Maximum message lenght
 #define MAX_ROOM_SEATS        9999      // Maximum number of seats
 #define MAX_CLI_SEATS           99      // Maximum number of seats a client can book at a time
 #define RQT_FIFO_NAME    "requests"     // Requests FIFO name

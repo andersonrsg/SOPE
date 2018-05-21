@@ -259,13 +259,17 @@ int main(int argc, char const *argv[]) {
         fprintf(stderr, "[MAIN]: Error opening server booking file\n");
         exit(1);
     }
-    bkmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
+    bkmsg = malloc((atoi(WIDTH_SEAT) + sizeof('\n')) * sizeof(char));
     len = 0;
     for (int i = 0; i < num_room_seats; i++) {
         if(seats[i]){
+            bkmsg = realloc(bkmsg, (len + atoi(WIDTH_SEAT) + sizeof('\n')) * sizeof(char));
             len += sprintf(bkmsg+len, "%0"WIDTH_SEAT"d\n", i+1);
         }
     }
+    bkmsg = realloc(bkmsg, len+1);
+    *(bkmsg+len) = '\0';
+    len++;
     write(sv_book_fd, bkmsg, len);
     printf("[MAIN]: Finished writing to server booking file\n");
 
@@ -347,7 +351,7 @@ void *requestHandler(void *tid){
     pthread_cleanup_push(cleanup_handler, &tnum);
 
     msg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
-    logmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
+    logmsg = malloc((atoi(WIDTH_THREAD) + sizeof("-OPEN\n")) * sizeof(char));
 
     sprintf(logmsg, "%0"WIDTH_THREAD"d-OPEN\n", tnum);
     write(sv_log_fd, logmsg, sizeof(logmsg));
@@ -391,10 +395,14 @@ void *requestHandler(void *tid){
         }
 
         // Build log message
+        logmsg = NULL;
+        logmsg = malloc((atoi(WIDTH_THREAD) + 2*sizeof("-") + atoi(WIDTH_PID) + atoi(WIDTH_NN) + sizeof(":")) * sizeof(char));
         log_len = sprintf(logmsg, "%0"WIDTH_THREAD"d-%0"WIDTH_PID"d-%0"WIDTH_NN"d:", tnum, rq->client, rq->num_wanted_seats);
         for (int i = 0; rq->preferred_seats[i] != INT_MIN; i++) {
+            logmsg = realloc(logmsg, (log_len + atoi(WIDTH_SEAT) + 1) * sizeof(char));
             log_len += sprintf(logmsg + log_len, " %0"WIDTH_SEAT"d", rq->preferred_seats[i] + 1);
         }
+        logmsg = realloc(logmsg, (log_len + sizeof(" -")) * sizeof(char));
         log_len += sprintf(logmsg+log_len, " -");
 
         // Handle request
@@ -440,20 +448,24 @@ void *requestHandler(void *tid){
                     freeSeat(seats, booked_seats[i]);
                     printf("[TIKCET OFFICE %d]: Seat %d freed\n", tnum, booked_seats[i] + 1);
                 }
+                logmsg = realloc(logmsg, (log_len + sizeof(" NAV\n")) * sizeof(char));
                 log_len += sprintf(logmsg+log_len, " NAV\n");
                 pthread_mutex_unlock(&seats_mut);
             }
             else{   // successfuly reservated all desired seats
                 printf("[TICKET OFFICE %d]: successfuly booked seats", tnum);
-                msg_len = sprintf(msg, "%d", rq->num_wanted_seats);
+                msg_len = sprintf(msg, "%0"WIDTH_SEAT"d", rq->num_wanted_seats);
 
                 for (int i = 0; i < num_booked_seats; i++) {
                     printf(" %d", booked_seats[i] + 1);
 
-                    msg_len += sprintf(msg + msg_len, " %d", booked_seats[i] + 1);
+                    msg_len += sprintf(msg + msg_len, " %0"WIDTH_SEAT"d", booked_seats[i] + 1);
+
+                    logmsg = realloc(logmsg, (log_len + atoi(WIDTH_SEAT) + 2) * sizeof(char));
                     log_len += sprintf(logmsg+log_len, " %0"WIDTH_SEAT"d", booked_seats[i] + 1);
                 }
                 printf("\n");
+                logmsg = realloc(logmsg, (log_len + sizeof('\n')) * sizeof(char));
                 log_len += sprintf(logmsg+log_len, "\n");
             }
 
@@ -463,30 +475,39 @@ void *requestHandler(void *tid){
             // Number of wanted seats higher than permited
             msg_len = sprintf(msg, "%d", MAX);
             fprintf(stderr, "[TICKET OFFICE %d]: Number of seats wanted higher than permited\n", tnum);
+            logmsg = realloc(logmsg, (log_len + sizeof(" MAX\n")) * sizeof(char));
             log_len += sprintf(logmsg+log_len, " MAX\n");
         }
         else if(err == -2){
             // Number of preferred seats invalid
             msg_len = sprintf(msg, "%d", NST);
             fprintf(stderr, "[TICKET OFFICE %d]: Number of preferred seats is invalid\n", tnum);
+            logmsg = realloc(logmsg, (log_len + sizeof(" NST\n")) * sizeof(char));
+
             log_len += sprintf(logmsg+log_len, " NST\n");
         }
         else if(err == -3){
             // One or more of the preferred seats id is invalid
             msg_len = sprintf(msg, "%d", IID);
             fprintf(stderr, "[TICKET OFFICE %d]: One of more of the preferred seats id is invalid\n", tnum);
+            logmsg = realloc(logmsg, (log_len + sizeof(" IID\n")) * sizeof(char));
+
             log_len += sprintf(logmsg+log_len, " IID\n");
         }
         else if(err == -4){
             // Invalid parameters
             msg_len = sprintf(msg, "%d", ERR);
             fprintf(stderr, "[TICKET OFFICE %d]: Invalid parameters\n", tnum);
+            logmsg = realloc(logmsg, (log_len + sizeof(" ERR\n")) * sizeof(char));
+
             log_len += sprintf(logmsg+log_len, " ERR\n");
         }
         else if(err == -6){
             // Room is full
             msg_len = sprintf(msg, "%d", FUL);
             fprintf(stderr, "[TICKET OFFICE %d]: Room is full\n", tnum);
+            logmsg = realloc(logmsg, (log_len + sizeof(" FUL\n")) * sizeof(char));
+
             log_len += sprintf(logmsg+log_len, " FUL\n");
         }
         *(msg+msg_len) = '\0';
@@ -494,6 +515,7 @@ void *requestHandler(void *tid){
         write(fd, msg, msg_len);
 
 
+        logmsg = realloc(logmsg, (log_len + sizeof('\0')) * sizeof(char));
         *(logmsg+log_len) = '\0';
         log_len++;
         write(sv_log_fd, logmsg, log_len);
@@ -667,13 +689,17 @@ void sigintHandler(int signum){
             fprintf(stderr, "[MAIN]: Error opening server booking file\n");
             exit(1);
         }
-        bkmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
+        bkmsg = malloc(atoi(WIDTH_SEAT) * sizeof(char));
         len = 0;
         for (int i = 0; i < num_room_seats; i++) {
             if(seats[i]){
                 len += sprintf(bkmsg+len, "%0"WIDTH_SEAT"d\n", i+1);
+                bkmsg = realloc(bkmsg, len);
             }
         }
+        bkmsg = realloc(bkmsg, len+1);
+        *(bkmsg+len) = '\0';
+        len++;
         write(sv_book_fd, bkmsg, len);
         printf("[MAIN]: Finished writing to server booking file\n");
 
