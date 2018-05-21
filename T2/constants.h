@@ -2,7 +2,7 @@
 #define constants_h_
 
 // Defined constants
-#define MAX_MSG_LEN            100      // Maximum message lenght
+#define MAX_MSG_LEN            500      // Maximum message lenght
 #define MAX_ROOM_SEATS        9999      // Maximum number of seats
 #define MAX_CLI_SEATS           99      // Maximum number of seats a client can book at a time
 #define RQT_FIFO_NAME    "requests"     // Requests FIFO name
@@ -15,7 +15,7 @@
 #define WIDTH_SEAT "4"
 #define WIDTH_THREAD "2"
 
-#define DELAY_TIME              1     // Simulated delay time
+#define DELAY_TIME              50000     // Simulated delay time
 
 // Defined Error constants
 #define MAX                    -1     // Number of desired seats is higher than permited
@@ -26,6 +26,6 @@
 #define FUL                    -6     // The room is full
 
 // Defined function-like macros
-#define DELAY(sec)     sleep(sec)       // Simulate the existence of some delay
+#define DELAY(sec)     usleep(sec)       // Simulate the existence of some delay
 
 #endif

@@ -56,8 +56,11 @@ static void cleanup_handler(void *arg);                 // Cleanup Handler execu
 // MAIN
 int main(int argc, char const *argv[]) {
     int *tnum,                          // Thread numbers
-        len;                            // Lenght of bkmsg
-    char request[MAX_MSG_LEN+1],        // string formatted request
+        rqt_len,                        // Length of request
+        len,                            // Lenght of bkmsg
+        err;                            // Error number
+    char *request,                      // string formatted request
+         c,                             // request character
          *args,                         // parameters as a string
          *bkmsg;                        // Message to write in server bookings file
     requests *rq;                       // structured formatted request
@@ -173,11 +176,19 @@ int main(int argc, char const *argv[]) {
     // Receive requests
     printf("[MAIN]: Ready to recieve requests\n");
     while (keep_going) {
-        if(read(rqt_fifo_fd, request, MAX_MSG_LEN) > 0){
-            printf("received request: %s\n", request);
-            rq = requestDisassembler(request);
-            rq_buffer = rq;
-            pthread_cond_broadcast(&cvar);
+        request = NULL;
+        rqt_len = 0;
+        while(read(rqt_fifo_fd, &c, 1) > 0){
+            request = realloc(request, (rqt_len+1) * sizeof(char));
+            *(request+rqt_len) = c;
+            rqt_len++;
+
+            if(c == '\0' || c == '\n'){
+                printf("received request: %s\n", request);
+                rq = requestDisassembler(request);
+                rq_buffer = rq;
+                pthread_cond_broadcast(&cvar);
+            }
         }
     }
 
@@ -204,26 +215,43 @@ int main(int argc, char const *argv[]) {
     // Terminate threads
     printf("[MAIN]: Terminating %d ticket offices\n", num_tickets_offices);
     for (int i = 0; i < num_tickets_offices; i++) {
+        pthread_mutex_unlock(&rqt_mut);
         pthread_cancel(tids[i]);
         pthread_join(tids[i], NULL);
     }
     free(tids);
     printf("[MAIN]: Terminated %d ticket offices\n", num_tickets_offices);
 
+    // Destroying conditional variables
+    printf("[MAIN]: Destroying conditional variable\n");
+    if(pthread_cond_destroy(&cvar)){
+        printf("[MAIN]: Error destroying conditional variable\n");
+        exit(1);
+    }
+    printf("[MAIN]: Destroyed conditional variable\n");
+
     // Destroy mutexes
     printf("[MAIN]: Destroying Request mutex\n");
-    if(pthread_mutex_destroy(&rqt_mut)){
-        fprintf(stderr, "[MAIN]: Error destroying Request mutex\n");
-        exit(1);
+    if((err = pthread_mutex_destroy(&rqt_mut)) == EBUSY){
+        fprintf(stderr, "[MAIN]: Error destroying Request mutex. Mutex is busy\n");
     }
-    printf("[MAIN]: Destroyed Request mutex\n");
+    else if(err == EINVAL){
+        fprintf(stderr, "[MAIN]: Error destroying Request mutex. Mutex is invalid\n");
+    }
+    else{
+        printf("[MAIN]: Destroyed Request mutex \n");
+    }
 
     printf("[MAIN]: Destroying Seats mutex\n");
-    if(pthread_mutex_destroy(&seats_mut)){
-        fprintf(stderr, "[MAIN]: Error destroying Seats mutex\n");
-        exit(1);
+    if((err = pthread_mutex_destroy(&seats_mut)) == EBUSY){
+        fprintf(stderr, "[MAIN]: Error destroying Seats mutex. Mutex is busy\n");
     }
-    printf("[MAIN]: Destroyed Seats mutex\n");
+    else if(err == EINVAL){
+        fprintf(stderr, "[MAIN]: Error destroying Seats mutex. Mutex is invalid\n");
+    }
+    else{
+        printf("[MAIN]: Destroyed Seats mutex\n");
+    }
 
 
     printf("[MAIN]: Writing to server booking file\n");
@@ -461,11 +489,13 @@ void *requestHandler(void *tid){
             fprintf(stderr, "[TICKET OFFICE %d]: Room is full\n", tnum);
             log_len += sprintf(logmsg+log_len, " FUL\n");
         }
-
-        printf("[TICKET OFFICE %d]: Writing message '%s' of lenght %d\n\n", tnum, msg, msg_len);
         *(msg+msg_len) = '\0';
         msg_len++;
         write(fd, msg, msg_len);
+
+
+        *(logmsg+log_len) = '\0';
+        log_len++;
         write(sv_log_fd, logmsg, log_len);
 
         // Enable cancellation
@@ -474,9 +504,6 @@ void *requestHandler(void *tid){
             pthread_exit(NULL);
         }
     }
-
-    log_len = sprintf(logmsg, "%d-CLOSE\n", tnum);
-    write(sv_log_fd, logmsg, log_len);
 
     pthread_cleanup_pop(0);
 
@@ -665,11 +692,11 @@ static void cleanup_handler(void *tnum){
     char *logmsg;
     int len;
 
-    pthread_mutex_unlock(&rqt_mut);
+    logmsg = malloc(sizeof("%0"WIDTH_THREAD"d-CLOSE\n") + 1);
 
-    logmsg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
-
-    len = sprintf(logmsg, "%0"WIDTH_THREAD"d-CLOSE\n", *(int*)tnum);
+    len = sprintf(logmsg, "%0"WIDTH_THREAD"d-CLOSE\n", *(int*) tnum);
+    *(logmsg+len) = '\0';
+    len++;
 
     write(sv_log_fd, logmsg, len);
 }
