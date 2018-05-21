@@ -350,7 +350,6 @@ void *requestHandler(void *tid){
     // Set Cleanup Handler
     pthread_cleanup_push(cleanup_handler, &tnum);
 
-    msg = malloc((MAX_MSG_LEN + 1) * sizeof(char));
     logmsg = malloc((atoi(WIDTH_THREAD) + sizeof("-OPEN\n")) * sizeof(char));
 
     sprintf(logmsg, "%0"WIDTH_THREAD"d-OPEN\n", tnum);
@@ -440,6 +439,7 @@ void *requestHandler(void *tid){
 
             if(num_wanted_seats){   // Could not reservate the total number of desired seats
                 printf("[TICKET OFFICE %d]: Could not book the total number of seats desired. Rolling back booking operation\n", tnum);
+                msg = realloc(msg, 2 * sizeof(char));
                 msg_len = sprintf(msg, "%d", NAV);
 
                 // Rollback operation
@@ -454,11 +454,13 @@ void *requestHandler(void *tid){
             }
             else{   // successfuly reservated all desired seats
                 printf("[TICKET OFFICE %d]: successfuly booked seats", tnum);
+                msg = realloc(msg, (atoi(WIDTH_SEAT) + 1) * sizeof(char));
                 msg_len = sprintf(msg, "%0"WIDTH_SEAT"d", rq->num_wanted_seats);
 
                 for (int i = 0; i < num_booked_seats; i++) {
                     printf(" %d", booked_seats[i] + 1);
 
+                    msg = realloc(msg, (msg_len + atoi(WIDTH_SEAT) + 2) * sizeof(char));
                     msg_len += sprintf(msg + msg_len, " %0"WIDTH_SEAT"d", booked_seats[i] + 1);
 
                     logmsg = realloc(logmsg, (log_len + atoi(WIDTH_SEAT) + 2) * sizeof(char));
@@ -473,6 +475,7 @@ void *requestHandler(void *tid){
         }
         else if(err == -1){
             // Number of wanted seats higher than permited
+            msg = realloc(msg, 2 * sizeof(char));
             msg_len = sprintf(msg, "%d", MAX);
             fprintf(stderr, "[TICKET OFFICE %d]: Number of seats wanted higher than permited\n", tnum);
             logmsg = realloc(logmsg, (log_len + sizeof(" MAX\n")) * sizeof(char));
@@ -480,6 +483,7 @@ void *requestHandler(void *tid){
         }
         else if(err == -2){
             // Number of preferred seats invalid
+            msg = realloc(msg, 2 * sizeof(char));
             msg_len = sprintf(msg, "%d", NST);
             fprintf(stderr, "[TICKET OFFICE %d]: Number of preferred seats is invalid\n", tnum);
             logmsg = realloc(logmsg, (log_len + sizeof(" NST\n")) * sizeof(char));
@@ -488,6 +492,7 @@ void *requestHandler(void *tid){
         }
         else if(err == -3){
             // One or more of the preferred seats id is invalid
+            msg = realloc(msg, 2 * sizeof(char));
             msg_len = sprintf(msg, "%d", IID);
             fprintf(stderr, "[TICKET OFFICE %d]: One of more of the preferred seats id is invalid\n", tnum);
             logmsg = realloc(logmsg, (log_len + sizeof(" IID\n")) * sizeof(char));
@@ -496,6 +501,7 @@ void *requestHandler(void *tid){
         }
         else if(err == -4){
             // Invalid parameters
+            msg = realloc(msg, 2 * sizeof(char));
             msg_len = sprintf(msg, "%d", ERR);
             fprintf(stderr, "[TICKET OFFICE %d]: Invalid parameters\n", tnum);
             logmsg = realloc(logmsg, (log_len + sizeof(" ERR\n")) * sizeof(char));
@@ -504,12 +510,14 @@ void *requestHandler(void *tid){
         }
         else if(err == -6){
             // Room is full
+            msg = realloc(msg, 2 * sizeof(char));
             msg_len = sprintf(msg, "%d", FUL);
             fprintf(stderr, "[TICKET OFFICE %d]: Room is full\n", tnum);
             logmsg = realloc(logmsg, (log_len + sizeof(" FUL\n")) * sizeof(char));
 
             log_len += sprintf(logmsg+log_len, " FUL\n");
         }
+        msg = realloc(msg, (msg_len + sizeof('\0')) * sizeof(char));
         *(msg+msg_len) = '\0';
         msg_len++;
         write(fd, msg, msg_len);
